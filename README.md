@@ -18,6 +18,7 @@ It runs media sampling, Depth Anything V2 inference, WebGL point rendering, live
 - Renders a dense point-field relief by default, with adaptive quality for weaker machines.
 - Separates rendering from frame inference so dragging and orbiting the 3D scene stays responsive while frames are being analyzed.
 - Switches between the canonical relief field and memory trails without changing the source media.
+- Provides Relief field material patterns for comparing Depthkit-like edge lighting, silhouette traces, fabric-like point texture, and sparse particles.
 - Saves shareable URL hashes for repeatable artwork states when the source is blank or demo media.
 - Provides a performance mode that hides controls for projection, recording, and installation tests.
 - Includes an experimental emoji mosaic mode that places small symbolic glyphs on the same 3D relief plane as the point field.

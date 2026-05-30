@@ -8,6 +8,8 @@ export type QualityMode = "visual" | "balanced" | "quality";
 
 export type ArtMode = "relief" | "memory";
 
+export type ReliefMaterial = "depthkit" | "silhouette" | "fabric" | "sparse";
+
 export type DepthBackendSelection =
   | "worker-cpu-heuristic"
   | "depth-anything-v2-small"
@@ -17,6 +19,7 @@ export type DepthBackend = "cpu-heuristic" | DepthBackendSelection;
 
 export interface ReliefParams {
   artMode: ArtMode;
+  reliefMaterial: ReliefMaterial;
   depthBackend: DepthBackendSelection;
   gridWidth: number;
   gridHeight: number;

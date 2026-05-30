@@ -2,6 +2,7 @@ import type { ReliefParams } from "./types";
 
 export const defaultParams: ReliefParams = {
   artMode: "relief",
+  reliefMaterial: "depthkit",
   depthBackend: "depth-anything-v2-base",
   gridWidth: 420,
   gridHeight: 236,

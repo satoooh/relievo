@@ -21,6 +21,7 @@ import type {
   DepthBackendSelection,
   ExportQuality,
   QualityMode,
+  ReliefMaterial,
   ReliefParams,
   RuntimeStats,
 } from "../types";
@@ -43,6 +44,7 @@ export interface ViewElements {
   recordButton: HTMLButtonElement;
   presetSelect: HTMLSelectElement;
   artModeSelect: HTMLSelectElement;
+  reliefMaterialSelect: HTMLSelectElement;
   depthBackendSelect: HTMLSelectElement;
   qualityModeSelect: HTMLSelectElement;
   exportQualitySelect: HTMLSelectElement;
@@ -126,6 +128,13 @@ const artModeOptions: Array<{ id: ArtMode; label: string; tooltip: string }> = [
   { id: "memory", label: "Memory trails", tooltip: "Trace local motion and depth changes as a particle afterimage" },
 ];
 
+const reliefMaterialOptions: Array<{ id: ReliefMaterial; label: string; tooltip: string }> = [
+  { id: "depthkit", label: "Depthkit field", tooltip: "Balanced white dotted surface with readable source color" },
+  { id: "silhouette", label: "Silhouette trace", tooltip: "Sharper white contour particles around depth and color edges" },
+  { id: "fabric", label: "Soft fabric", tooltip: "Fine woven point texture for cloth and skin detail" },
+  { id: "sparse", label: "Sparse particles", tooltip: "Airier particle field with more negative space" },
+];
+
 export function createView(root: HTMLElement, params: ReliefParams): ViewElements {
   root.innerHTML = `
     <main class="relievo-shell relative h-full w-full overflow-hidden bg-[#030405] text-[#f1efe7]" data-palette="nocturne">
@@ -201,6 +210,7 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
         <select id="preset-select" class="hidden"></select>
 
         <select id="art-mode-select" class="mt-2 w-full rounded border border-white/12 bg-[#12161d] px-2 py-2 text-xs text-white" data-tooltip="Switch point-field study mode"></select>
+        <select id="relief-material-select" class="mt-1 w-full rounded border border-white/12 bg-[#12161d] px-2 py-2 text-xs text-white" data-tooltip="Switch Relief field material pattern"></select>
         <select id="depth-backend-select" class="mt-2 w-full rounded border border-white/12 bg-[#12161d] px-2 py-2 text-xs text-white"></select>
         <select id="quality-mode-select" class="mt-1 w-full rounded border border-white/12 bg-[#12161d] px-2 py-2 text-xs text-white">
           <option value="visual">Visual FPS priority</option>
@@ -289,6 +299,11 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
     artModeSelect.insertAdjacentHTML("beforeend", `<option value="${mode.id}" title="${mode.tooltip}">${mode.label}</option>`);
   }
 
+  const reliefMaterialSelect = mustGet<HTMLSelectElement>("relief-material-select");
+  for (const material of reliefMaterialOptions) {
+    reliefMaterialSelect.insertAdjacentHTML("beforeend", `<option value="${material.id}" title="${material.tooltip}">${material.label}</option>`);
+  }
+
   const depthBackendSelect = mustGet<HTMLSelectElement>("depth-backend-select");
   for (const backend of depthBackendOptions) {
     depthBackendSelect.insertAdjacentHTML("beforeend", `<option value="${backend.id}">${backend.label}</option>`);
@@ -305,6 +320,7 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
   const qualityModeSelect = mustGet<HTMLSelectElement>("quality-mode-select");
   adaptiveQuality.checked = params.adaptiveQuality;
   artModeSelect.value = params.artMode;
+  reliefMaterialSelect.value = params.reliefMaterial;
   monochrome.checked = params.monochrome;
   qualityModeSelect.value = params.qualityMode;
   depthBackendSelect.value = params.depthBackend;
@@ -330,6 +346,7 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
     recordButton: mustGet<HTMLButtonElement>("record-button"),
     presetSelect,
     artModeSelect,
+    reliefMaterialSelect,
     depthBackendSelect,
     qualityModeSelect,
     exportQualitySelect: mustGet<HTMLSelectElement>("export-quality-select"),
@@ -361,6 +378,7 @@ export function syncView(
   elements.emojiMode.checked = options.emojiMode;
   elements.monochrome.checked = params.monochrome;
   elements.artModeSelect.value = params.artMode;
+  elements.reliefMaterialSelect.value = params.reliefMaterial;
   elements.depthBackendSelect.value = params.depthBackend;
   elements.qualityModeSelect.value = params.qualityMode;
   elements.exportQualitySelect.value = options.exportQuality;
@@ -412,6 +430,10 @@ export function bindParamControls(
   });
   elements.artModeSelect.addEventListener("change", () => {
     params.artMode = elements.artModeSelect.value as ArtMode;
+    onChange();
+  });
+  elements.reliefMaterialSelect.addEventListener("change", () => {
+    params.reliefMaterial = elements.reliefMaterialSelect.value as ReliefMaterial;
     onChange();
   });
   elements.depthBackendSelect.addEventListener("change", () => {

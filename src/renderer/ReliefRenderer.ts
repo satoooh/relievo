@@ -400,6 +400,7 @@ export class ReliefRenderer {
     this.uniforms.uParticleInertia.value = params.particleInertia;
     this.uniforms.uPointOpacity.value = params.pointOpacity;
     this.uniforms.uPointSize.value = params.pointSize;
+    this.uniforms.uReliefMaterial.value = reliefMaterialIndex(params.reliefMaterial);
     this.uniforms.uScanDirection.value = scanDirectionIndex(params.scanDirection);
     this.uniforms.uScan.value = scanThreshold(params, elapsedMs);
     this.uniforms.uSourceTransition.value = easeInOutCubic(clamp01((now - this.sourceTransitionStartedAt) / 1800));
@@ -490,6 +491,20 @@ function artModeIndex(mode: ReliefParams["artMode"]): number {
     case "memory":
       return 1;
     case "relief":
+    default:
+      return 0;
+  }
+}
+
+function reliefMaterialIndex(material: ReliefParams["reliefMaterial"]): number {
+  switch (material) {
+    case "silhouette":
+      return 1;
+    case "fabric":
+      return 2;
+    case "sparse":
+      return 3;
+    case "depthkit":
     default:
       return 0;
   }
@@ -659,6 +674,7 @@ function createReliefUniforms() {
     uPixelRatio: { value: 1 },
     uPointOpacity: { value: 0.64 },
     uPointSize: { value: 0.22 },
+    uReliefMaterial: { value: 0 },
     uScan: { value: 1 },
     uScanDirection: { value: 0 },
     uSourceTransition: { value: 1 },
@@ -703,6 +719,7 @@ const vertexShader = `
   uniform float uPixelRatio;
   uniform float uPointOpacity;
   uniform float uPointSize;
+  uniform float uReliefMaterial;
   uniform float uScan;
   uniform float uScanDirection;
   uniform float uSourceTransition;
@@ -766,13 +783,23 @@ const vertexShader = `
     float interactionRipple = sin(interactionDistance * 52.0 - uElapsed * 0.018) * 0.045 * interactionField;
     float interactionLift = (interactionField * 0.055 + interactionRipple) * (0.62 + z * 0.72);
     float memoryMode = 1.0 - step(0.5, abs(uArtMode - 1.0));
+    float depthkitMaterial = 1.0 - step(0.5, abs(uReliefMaterial - 0.0));
+    float silhouetteMaterial = 1.0 - step(0.5, abs(uReliefMaterial - 1.0));
+    float fabricMaterial = 1.0 - step(0.5, abs(uReliefMaterial - 2.0));
+    float sparseMaterial = 1.0 - step(0.5, abs(uReliefMaterial - 3.0));
     float motionGlow = smoothstep(0.025, 0.64, aMotion) * memoryMode;
     float memoryRail = pow(motionGlow, 0.72);
     float memoryShimmer = (0.5 + 0.5 * sin(uElapsed * 0.009 + aSeed * 9.0 + z * 12.0)) * memoryRail;
     float memoryWake = sin(uElapsed * 0.004 + aUv.x * 42.0 - aUv.y * 31.0 + aSeed * 3.0) * 0.032 * memoryRail;
-    float edgeVeil = smoothstep(0.08, 0.72, aEdge) * depthWindow;
+    float edgeStart = depthkitMaterial * 0.08 + silhouetteMaterial * 0.04 + fabricMaterial * 0.12 + sparseMaterial * 0.18;
+    float edgeEnd = depthkitMaterial * 0.72 + silhouetteMaterial * 0.5 + fabricMaterial * 0.82 + sparseMaterial * 0.66;
+    float edgeVeil = smoothstep(edgeStart, edgeEnd, aEdge) * depthWindow;
+    float fabricWeave = (0.5 + 0.5 * sin(aUv.x * 260.0 + aSeed * 2.2)) *
+      (0.5 + 0.5 * cos(aUv.y * 214.0 - aSeed * 1.8));
     float edgeWeave = (0.5 + 0.5 * sin(aUv.x * 190.0 + aUv.y * 132.0 + aSeed * 4.0)) * edgeVeil;
-    float modeLift = memoryRail * 0.086 + memoryWake * (0.45 + z * 0.72) + edgeVeil * 0.026;
+    float sparseGate = mix(1.0, step(-0.28, random(aUv * 360.0 + vec2(aSeed))), sparseMaterial);
+    float edgeLiftScale = depthkitMaterial * 0.026 + silhouetteMaterial * 0.045 + fabricMaterial * 0.018 + sparseMaterial * 0.032;
+    float modeLift = memoryRail * 0.086 + memoryWake * (0.45 + z * 0.72) + edgeVeil * edgeLiftScale;
     float displaced = (z + glitch + trailWave + interactionLift + modeLift) * uDepthScale * uMorphAmount * localMorph * breathing * settledMotion * revealed;
 
     vec3 transformed = position;
@@ -788,7 +815,7 @@ const vertexShader = `
     transformed.xy += vec2(
       sin(aSeed * 8.0),
       cos(aSeed * 7.0)
-    ) * edgeVeil * 0.004;
+    ) * edgeVeil * (0.003 + silhouetteMaterial * 0.004 + sparseMaterial * 0.003);
     transformed.z = displaced - uDepthScale * 0.45;
 
     float mono = dot(sourceColor, vec3(0.333333));
@@ -802,19 +829,27 @@ const vertexShader = `
     float pointLightFloor = depthWindow * scanTint * uBrightness * (1.0 - uBlankSource) * 0.16;
     float pointLight = max(pointLightFloor, reliefTone * fade * depthWindow * scanTint * uBrightness * blankBoost * (0.38 + localMorph * 0.62));
     pointLight += depthWindow * uBrightness * (memoryRail * 0.86 + memoryShimmer * 0.42);
-    pointLight += edgeVeil * uBrightness * (0.34 + edgeWeave * 0.22);
+    float edgeLight = depthkitMaterial * 0.34 + silhouetteMaterial * 0.72 + fabricMaterial * 0.26 + sparseMaterial * 0.48;
+    pointLight += edgeVeil * uBrightness * (edgeLight + edgeWeave * (0.14 + silhouetteMaterial * 0.2) + fabricWeave * fabricMaterial * 0.18);
     vec3 litColor = colorChannel(displayColor * pointLight, uColorStrength);
     vec3 memoryTint = vec3(0.24, 0.78, 0.88) * memoryRail + vec3(0.92, 0.86, 0.52) * memoryShimmer * 0.34;
     litColor = mix(litColor, litColor + memoryTint, memoryMode);
-    vec3 edgeTone = mix(litColor, vec3(0.88, 0.9, 0.86), edgeVeil * (0.54 + edgeWeave * 0.16));
-    litColor = mix(litColor, edgeTone, 0.72);
+    vec3 materialWhite = mix(vec3(0.88, 0.9, 0.86), vec3(0.96, 0.97, 0.93), silhouetteMaterial * 0.55 + sparseMaterial * 0.2);
+    vec3 fabricTint = mix(litColor, sourceColor * (0.62 + pointLight * 0.38), fabricMaterial * 0.72);
+    litColor = mix(litColor, fabricTint, fabricMaterial * 0.62);
+    float edgeMix = depthkitMaterial * 0.72 + silhouetteMaterial * 0.94 + fabricMaterial * 0.42 + sparseMaterial * 0.76;
+    vec3 edgeTone = mix(litColor, materialWhite, edgeVeil * (0.46 + edgeWeave * 0.22 + silhouetteMaterial * 0.18));
+    litColor = mix(litColor, edgeTone, edgeMix);
     vec3 monoColor = vec3(pointLight * 0.78, pointLight * 0.82, pointLight * 0.9);
     vColor = mix(litColor, monoColor, step(0.5, uMonochrome));
-    vAlpha = clamp(depthWindow * uPointOpacity * (0.18 + localMorph * 0.82 + memoryRail * 0.38 + edgeVeil * 0.22), 0.0, 1.0);
+    float materialAlpha = depthkitMaterial * 1.0 + silhouetteMaterial * 0.9 + fabricMaterial * 0.82 + sparseMaterial * 0.72;
+    vAlpha = clamp(depthWindow * uPointOpacity * materialAlpha * sparseGate * (0.18 + localMorph * 0.82 + memoryRail * 0.38 + edgeVeil * (0.2 + silhouetteMaterial * 0.2)), 0.0, 1.0);
 
     vec4 mvPosition = modelViewMatrix * vec4(transformed, 1.0);
+    float materialPointScale = depthkitMaterial * 1.0 + silhouetteMaterial * 1.12 + fabricMaterial * 0.92 + sparseMaterial * 1.34;
     gl_PointSize = max(1.15, uPointSize * uViewportHeight * uPixelRatio * 0.108 / max(0.1, -mvPosition.z)) *
-      (1.0 + interactionField * 0.32 + memoryRail * 0.52 + memoryShimmer * 0.18 + edgeVeil * 0.42 + edgeWeave * 0.16);
+      materialPointScale *
+      (1.0 + interactionField * 0.32 + memoryRail * 0.52 + memoryShimmer * 0.18 + edgeVeil * (0.36 + silhouetteMaterial * 0.34 + sparseMaterial * 0.22) + edgeWeave * 0.16 + fabricWeave * fabricMaterial * 0.08);
     gl_Position = projectionMatrix * mvPosition;
   }
 `;
