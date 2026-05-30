@@ -13,7 +13,9 @@ describe("shareable state hash", () => {
       sourceKind: "demo",
       params: {
         ...defaultParams,
+        particleInertia: 0.52,
         pointSize: 0.22,
+        qualityMode: "visual",
         scanDirection: "top-bottom",
       },
     });
@@ -28,7 +30,9 @@ describe("shareable state hash", () => {
       sourceKind: "demo",
     });
     expect(decoded.params).toMatchObject({
+      particleInertia: 0.52,
       pointSize: 0.22,
+      qualityMode: "visual",
       scanDirection: "top-bottom",
     });
   });

@@ -27,6 +27,7 @@ const numericParamKeys = [
   "renderScale",
   "morphAmount",
   "morphSpeed",
+  "particleInertia",
   "scanReveal",
   "trailAmount",
   "breathing",
@@ -45,6 +46,7 @@ export function encodeShareableState(state: ShareableState): string {
   query.set("emoji", state.emojiMode ? "1" : "0");
   query.set("export", state.exportQuality);
   query.set("backend", state.params.depthBackend);
+  query.set("qualityMode", state.params.qualityMode);
   query.set("scanDir", state.params.scanDirection);
 
   for (const key of numericParamKeys) {
@@ -80,6 +82,11 @@ export function decodeShareableState(hash: string): Partial<ShareableState> {
   const backend = query.get("backend");
   if (backend === "depth-anything-v2-base" || backend === "depth-anything-v2-small" || backend === "worker-cpu-heuristic") {
     params.depthBackend = backend;
+  }
+
+  const qualityMode = query.get("qualityMode");
+  if (qualityMode === "visual" || qualityMode === "balanced" || qualityMode === "quality") {
+    params.qualityMode = qualityMode;
   }
 
   const scanDirection = query.get("scanDir");

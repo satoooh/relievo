@@ -4,6 +4,7 @@ import type {
   DemoSceneId,
   DepthBackendSelection,
   ExportQuality,
+  QualityMode,
   ReliefParams,
   RuntimeStats,
   ScanDirection,
@@ -27,6 +28,7 @@ export interface ViewElements {
   recordButton: HTMLButtonElement;
   presetSelect: HTMLSelectElement;
   depthBackendSelect: HTMLSelectElement;
+  qualityModeSelect: HTMLSelectElement;
   exportQualitySelect: HTMLSelectElement;
   performanceButton: HTMLButtonElement;
   shareButton: HTMLButtonElement;
@@ -49,6 +51,7 @@ export interface ViewElements {
     | "renderScale"
     | "morphAmount"
     | "morphSpeed"
+    | "particleInertia"
     | "scanReveal"
     | "trailAmount"
     | "breathing"
@@ -80,6 +83,7 @@ const sliders: Array<{ key: SliderKey; label: string; min: number; max: number; 
   { key: "renderScale", label: "Render", min: 0.5, max: 1.25, step: 0.05 },
   { key: "morphAmount", label: "Morph", min: 0, max: 1, step: 0.01 },
   { key: "morphSpeed", label: "Morph Speed", min: 0.05, max: 1, step: 0.01 },
+  { key: "particleInertia", label: "Inertia", min: 0, max: 1, step: 0.01 },
   { key: "scanReveal", label: "Scan", min: 0, max: 1, step: 0.01 },
   { key: "trailAmount", label: "Trail", min: 0, max: 0.5, step: 0.01 },
   { key: "breathing", label: "Breath", min: 0, max: 0.4, step: 0.01 },
@@ -142,6 +146,11 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
         </div>
 
         <select id="depth-backend-select" class="mt-2 w-full rounded border border-white/12 bg-[#12161d] px-3 py-2 text-sm text-white"></select>
+        <select id="quality-mode-select" class="mt-2 w-full rounded border border-white/12 bg-[#12161d] px-3 py-2 text-sm text-white">
+          <option value="visual">Visual FPS priority</option>
+          <option value="balanced">Balanced</option>
+          <option value="quality">Depth quality priority</option>
+        </select>
 
         <div class="mt-2 grid grid-cols-[1fr_auto_auto] gap-2">
           <select id="export-quality-select" class="min-w-0 rounded border border-white/12 bg-[#12161d] px-3 py-2 text-sm text-white">
@@ -214,9 +223,11 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
   const emojiMode = mustGet<HTMLInputElement>("emoji-mode");
   const monochrome = mustGet<HTMLInputElement>("monochrome");
   const scanDirection = mustGet<HTMLSelectElement>("scan-direction");
+  const qualityModeSelect = mustGet<HTMLSelectElement>("quality-mode-select");
   adaptiveQuality.checked = params.adaptiveQuality;
   monochrome.checked = params.monochrome;
   scanDirection.value = params.scanDirection;
+  qualityModeSelect.value = params.qualityMode;
   depthBackendSelect.value = params.depthBackend;
 
   return {
@@ -236,6 +247,7 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
     recordButton: mustGet<HTMLButtonElement>("record-button"),
     presetSelect,
     depthBackendSelect,
+    qualityModeSelect,
     exportQualitySelect: mustGet<HTMLSelectElement>("export-quality-select"),
     performanceButton: mustGet<HTMLButtonElement>("performance-button"),
     shareButton: mustGet<HTMLButtonElement>("share-button"),
@@ -267,6 +279,7 @@ export function syncView(
   elements.monochrome.checked = params.monochrome;
   elements.scanDirection.value = params.scanDirection;
   elements.depthBackendSelect.value = params.depthBackend;
+  elements.qualityModeSelect.value = params.qualityMode;
   elements.exportQualitySelect.value = options.exportQuality;
   elements.performanceButton.textContent = options.performanceMode ? "Edit" : "Perform";
   elements.shell.classList.toggle("is-performance", options.performanceMode);
@@ -321,6 +334,10 @@ export function bindParamControls(
   });
   elements.depthBackendSelect.addEventListener("change", () => {
     params.depthBackend = elements.depthBackendSelect.value as DepthBackendSelection;
+    onChange();
+  });
+  elements.qualityModeSelect.addEventListener("change", () => {
+    params.qualityMode = elements.qualityModeSelect.value as QualityMode;
     onChange();
   });
 }

@@ -20,6 +20,7 @@ export function createAdvancedGui(params: ReliefParams, onChange: () => void): G
   depth.add(params, "backgroundFade", 0.05, 1, 0.01).onChange(onChange);
 
   const render = gui.addFolder("Render");
+  render.add(params, "qualityMode", ["visual", "balanced", "quality"]).onChange(onChange);
   render.add(params, "pointSize", 0.12, 6, 0.02).onChange(onChange);
   render.add(params, "pointOpacity", 0.05, 1, 0.01).onChange(onChange);
   render.add(params, "colorStrength", 0, 1, 0.01).onChange(onChange);
@@ -28,6 +29,7 @@ export function createAdvancedGui(params: ReliefParams, onChange: () => void): G
   const motion = gui.addFolder("Motion");
   motion.add(params, "morphAmount", 0, 1, 0.01).onChange(onChange);
   motion.add(params, "morphSpeed", 0.05, 1, 0.01).onChange(onChange);
+  motion.add(params, "particleInertia", 0, 1, 0.01).onChange(onChange);
   motion.add(params, "scanReveal", 0, 1, 0.01).onChange(onChange);
   motion.add(params, "breathing", 0, 0.4, 0.01).onChange(onChange);
   motion.add(params, "glitchAmount", 0, 0.35, 0.01).onChange(onChange);

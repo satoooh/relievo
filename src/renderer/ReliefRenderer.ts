@@ -40,8 +40,10 @@ export class ReliefRenderer {
   private lastFrameAt = performance.now();
   private frameBlendMs = 180;
   private hasFrame = false;
+  private preserveTransitionPreviousFrame = false;
   private sourceKind: FrameSample["sourceKind"] = "blank";
   private startedAt = performance.now();
+  private sourceTransitionStartedAt = -10000;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -85,6 +87,12 @@ export class ReliefRenderer {
 
   restartIntro(): void {
     this.startedAt = performance.now();
+  }
+
+  beginSourceTransition(): void {
+    const now = performance.now();
+    this.startedAt = now;
+    this.sourceTransitionStartedAt = now;
   }
 
   render(params: ReliefParams, stats: RuntimeStats, emojiMode = false): void {
@@ -174,6 +182,12 @@ export class ReliefRenderer {
     this.geometry.setAttribute("aColor", new THREE.BufferAttribute(this.colors, 3));
     this.geometry.setAttribute("aSeed", new THREE.BufferAttribute(this.seeds, 1));
     this.geometry.computeBoundingSphere();
+    if (this.isSourceTransitionActive(performance.now())) {
+      this.seedTransitionPreviousFrame();
+      this.preserveTransitionPreviousFrame = true;
+      this.hasFrame = true;
+      return;
+    }
     this.hasFrame = false;
   }
 
@@ -186,7 +200,7 @@ export class ReliefRenderer {
     this.frameStartedAt = now;
     this.lastFrameAt = now;
 
-    if (this.hasFrame) {
+    if (this.hasFrame && !this.preserveTransitionPreviousFrame) {
       this.previousDepths.set(this.depths);
       this.previousColors.set(this.colors);
     }
@@ -212,6 +226,22 @@ export class ReliefRenderer {
     this.geometry.attributes.aPreviousColor!.needsUpdate = true;
     this.geometry.attributes.aColor!.needsUpdate = true;
     this.lastEmojiSync = 0;
+    this.preserveTransitionPreviousFrame = false;
+  }
+
+  private seedTransitionPreviousFrame(): void {
+    for (let index = 0; index < this.previousDepths.length; index += 1) {
+      this.previousDepths[index] = 0.5;
+    }
+    for (let index = 0; index < this.previousColors.length; index += 3) {
+      this.previousColors[index] = 0.88;
+      this.previousColors[index + 1] = 0.9;
+      this.previousColors[index + 2] = 0.92;
+    }
+  }
+
+  private isSourceTransitionActive(now: number): boolean {
+    return now - this.sourceTransitionStartedAt < 1800;
   }
 
   private syncEmojiMeshes(params: ReliefParams, now: number, enabled: boolean): void {
@@ -303,10 +333,12 @@ export class ReliefRenderer {
     this.uniforms.uMonochrome.value = params.monochrome ? 1 : 0;
     this.uniforms.uMorphAmount.value = params.morphAmount;
     this.uniforms.uNearThreshold.value = near;
+    this.uniforms.uParticleInertia.value = params.particleInertia;
     this.uniforms.uPointOpacity.value = params.pointOpacity;
     this.uniforms.uPointSize.value = params.pointSize;
     this.uniforms.uScanDirection.value = scanDirectionIndex(params.scanDirection);
     this.uniforms.uScan.value = scanThreshold(params, elapsedMs);
+    this.uniforms.uSourceTransition.value = easeInOutCubic(clamp01((now - this.sourceTransitionStartedAt) / 1800));
     this.uniforms.uTextureMix.value = params.textureMix;
     this.uniforms.uTrailAmount.value = params.trailAmount;
   }
@@ -509,11 +541,13 @@ function createReliefUniforms() {
     uMonochrome: { value: 0 },
     uMorphAmount: { value: 1 },
     uNearThreshold: { value: 0 },
+    uParticleInertia: { value: 0.42 },
     uPixelRatio: { value: 1 },
     uPointOpacity: { value: 0.64 },
     uPointSize: { value: 0.22 },
     uScan: { value: 1 },
     uScanDirection: { value: 0 },
+    uSourceTransition: { value: 1 },
     uTextureMix: { value: 0.62 },
     uTrailAmount: { value: 0 },
     uViewportHeight: { value: 720 },
@@ -545,11 +579,13 @@ const vertexShader = `
   uniform float uMonochrome;
   uniform float uMorphAmount;
   uniform float uNearThreshold;
+  uniform float uParticleInertia;
   uniform float uPixelRatio;
   uniform float uPointOpacity;
   uniform float uPointSize;
   uniform float uScan;
   uniform float uScanDirection;
+  uniform float uSourceTransition;
   uniform float uTextureMix;
   uniform float uTrailAmount;
   uniform float uViewportHeight;
@@ -583,8 +619,12 @@ const vertexShader = `
     float axis = scanAxis(aUv);
     float revealed = axis <= uScan ? 1.0 : 0.08;
     float animatedNoise = random(aUv * 2048.0 + floor(uElapsed / 120.0) * 0.31) * (1.0 - uBlankSource);
-    float sourceDepth = mix(aPreviousDepth, aDepth, uFrameBlend);
-    vec3 sourceColor = mix(aPreviousColor, aColor, uFrameBlend);
+    float depthDelta = aDepth - aPreviousDepth;
+    float springArc = sin(uFrameBlend * 3.14159265);
+    float sourceDepth = clamp(mix(aPreviousDepth, aDepth, uFrameBlend) + depthDelta * springArc * uParticleInertia * 0.18, 0.0, 1.0);
+    vec3 sourceColor = mix(aPreviousColor, aColor, smoothstep(0.0, 0.82, uFrameBlend));
+    sourceDepth = mix(0.5, sourceDepth, smoothstep(0.16, 1.0, uSourceTransition));
+    sourceColor = mix(vec3(0.88, 0.9, 0.92), sourceColor, smoothstep(0.0, 0.7, uSourceTransition));
     float z = pow(clamp(sourceDepth, 0.0, 1.0), uDepthGamma);
 
     if (uDepthQuantize > 1.0) {
@@ -603,6 +643,10 @@ const vertexShader = `
     float displaced = (z + glitch + trailWave) * uDepthScale * uMorphAmount * localMorph * breathing * settledMotion * revealed;
 
     vec3 transformed = position;
+    transformed.xy += vec2(
+      sin(aSeed * 4.7 + uElapsed * 0.0011),
+      cos(aSeed * 3.9 + uElapsed * 0.0013)
+    ) * abs(depthDelta) * springArc * uParticleInertia * 0.018;
     transformed.z = displaced - uDepthScale * 0.45;
 
     float mono = dot(sourceColor, vec3(0.333333));

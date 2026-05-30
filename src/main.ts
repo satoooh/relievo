@@ -41,6 +41,18 @@ const targetVisualFPS = 30;
 const idealVisualFPS = 58;
 const defaultSampleAspect = defaultParams.gridWidth / defaultParams.gridHeight;
 
+interface QualityProfile {
+  minimumFPS: number;
+  targetFPS: number;
+  idealFPS: number;
+  renderFloor: number;
+  sampleFloor: number;
+  videoSampleLimit: number;
+  imageSampleLimit: number;
+  reduceFast: number;
+  reduceSoft: number;
+}
+
 let currentDemoSceneId = initialShareState.demoSceneId ?? initialDemoSceneId;
 let source: MediaSourceHandle = initialShareState.sourceKind === "demo" ? createDemoSource(currentDemoSceneId) : createBlankSource();
 let lastStatsSync = 0;
@@ -222,7 +234,7 @@ async function setSource(next: MediaSourceHandle): Promise<void> {
   source.stop();
   source = next;
   smoother.reset();
-  renderer.restartIntro();
+  renderer.beginSourceTransition();
   qualityAdaptAfter = performance.now() + 3200;
   stats.sourceKind = source.kind;
   startInferenceLoop(true);
@@ -409,22 +421,23 @@ function adaptRenderQuality(now: number): void {
     return;
   }
 
+  const profile = qualityProfile();
   lastQualityAdaptAt = now;
-  if (stats.renderFPS < minimumVisualFPS) {
-    params.renderScale = Math.max(0.58, Number((params.renderScale - 0.12).toFixed(2)));
-    resizeInferenceGrid(Math.max(160, Math.round(params.gridWidth * 0.78)));
+  if (stats.renderFPS < profile.minimumFPS) {
+    params.renderScale = Math.max(profile.renderFloor, Number((params.renderScale - 0.12).toFixed(2)));
+    resizeInferenceGrid(Math.max(profile.sampleFloor, Math.round(params.gridWidth * profile.reduceFast)));
     smoother.reset();
     return;
   }
 
-  if (stats.renderFPS < targetVisualFPS) {
-    params.renderScale = Math.max(0.68, Number((params.renderScale - 0.06).toFixed(2)));
-    resizeInferenceGrid(Math.max(192, Math.round(params.gridWidth * 0.9)));
+  if (stats.renderFPS < profile.targetFPS) {
+    params.renderScale = Math.max(profile.renderFloor, Number((params.renderScale - 0.06).toFixed(2)));
+    resizeInferenceGrid(Math.max(profile.sampleFloor, Math.round(params.gridWidth * profile.reduceSoft)));
     smoother.reset();
     return;
   }
 
-  if (stats.renderFPS > idealVisualFPS && params.renderScale < defaultParams.renderScale && source.kind === "blank") {
+  if (stats.renderFPS > profile.idealFPS && params.renderScale < defaultParams.renderScale && source.kind === "blank") {
     params.renderScale = Math.min(defaultParams.renderScale, Number((params.renderScale + 0.04).toFixed(2)));
   }
 }
@@ -552,7 +565,8 @@ function blankGridDimensions(): { width: number; height: number } {
 }
 
 function dynamicSampleDimensions(): { width: number; height: number } {
-  const sourceLimit = source.kind === "webcam" || source.kind === "video" ? defaultParams.gridWidth : 512;
+  const profile = qualityProfile();
+  const sourceLimit = source.kind === "webcam" || source.kind === "video" ? profile.videoSampleLimit : profile.imageSampleLimit;
   const width = Math.min(sourceLimit, Math.max(160, params.gridWidth));
   return { width, height: Math.max(90, Math.round(width / sampleAspect())) };
 }
@@ -566,6 +580,48 @@ function resizeInferenceGrid(width: number): void {
 function sampleAspect(): number {
   const aspect = params.gridWidth / Math.max(1, params.gridHeight);
   return Number.isFinite(aspect) && aspect > 0 ? aspect : defaultSampleAspect;
+}
+
+function qualityProfile(): QualityProfile {
+  switch (params.qualityMode) {
+    case "visual":
+      return {
+        minimumFPS: 30,
+        targetFPS: 42,
+        idealFPS: 58,
+        renderFloor: 0.55,
+        sampleFloor: 144,
+        videoSampleLimit: 320,
+        imageSampleLimit: 384,
+        reduceFast: 0.72,
+        reduceSoft: 0.84,
+      };
+    case "quality":
+      return {
+        minimumFPS: 20,
+        targetFPS: 24,
+        idealFPS: 52,
+        renderFloor: 0.78,
+        sampleFloor: 240,
+        videoSampleLimit: 512,
+        imageSampleLimit: 640,
+        reduceFast: 0.88,
+        reduceSoft: 0.94,
+      };
+    case "balanced":
+    default:
+      return {
+        minimumFPS: minimumVisualFPS,
+        targetFPS: targetVisualFPS,
+        idealFPS: idealVisualFPS,
+        renderFloor: 0.68,
+        sampleFloor: 192,
+        videoSampleLimit: defaultParams.gridWidth,
+        imageSampleLimit: 512,
+        reduceFast: 0.78,
+        reduceSoft: 0.9,
+      };
+  }
 }
 
 function prepareBlankPointSample(sample: FrameSample): void {

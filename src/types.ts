@@ -4,6 +4,8 @@ export type ScanDirection = "left-right" | "right-left" | "top-bottom" | "bottom
 
 export type DemoSceneId = "studio" | "mountain" | "product" | "alley" | "motion-sweep";
 
+export type QualityMode = "visual" | "balanced" | "quality";
+
 export type DepthBackendSelection =
   | "worker-cpu-heuristic"
   | "depth-anything-v2-small"
@@ -30,8 +32,10 @@ export interface ReliefParams {
   inferenceFPS: number;
   renderScale: number;
   adaptiveQuality: boolean;
+  qualityMode: QualityMode;
   morphAmount: number;
   morphSpeed: number;
+  particleInertia: number;
   scanReveal: number;
   scanDirection: ScanDirection;
   trailAmount: number;
