@@ -20,7 +20,7 @@ The work begins as a flat field of points placed in 3D space. An image, video, o
 Relievo is moving toward a real-time 3D-space depth relief instrument:
 
 - a white blank particle field in 3D space that can become media-colored 2.5D relief without a hard scene change,
-- Depth Anything V2 as the primary creative ML backend,
+- Depth Anything V2 as the primary creative ML backend, with Apple Depth Pro Sharp available as a heavier boundary-quality study,
 - performance mode for projection and exhibition,
 - keyboard and canvas gestures that let the work move between edit surface and exhibition surface without adding visible UI,
 - shareable URL hashes for repeatable artwork states,

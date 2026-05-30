@@ -9,7 +9,8 @@ export type QualityMode = "visual" | "balanced" | "quality";
 export type DepthBackendSelection =
   | "worker-cpu-heuristic"
   | "depth-anything-v2-small"
-  | "depth-anything-v2-base";
+  | "depth-anything-v2-base"
+  | "apple-depth-pro-sharp";
 
 export type DepthBackend = "cpu-heuristic" | DepthBackendSelection;
 

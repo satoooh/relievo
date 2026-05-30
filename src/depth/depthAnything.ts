@@ -9,6 +9,7 @@ import { getDepthBackendMeta } from "./depthBackends";
 
 interface LoadedDepthModel {
   estimator: DepthEstimationPipeline;
+  invertDepth: boolean;
   rawImage: typeof RawImageType;
 }
 
@@ -19,7 +20,7 @@ export async function estimateDepthAnything(sample: FrameSample, backend: DepthB
   const model = await getDepthModel(backend);
   const image = new model.rawImage(toRgb(sample.data), sample.width, sample.height, 3);
   const output = await model.estimator(image);
-  const depth = normalizeDepthImage(output.depth, sample.width, sample.height);
+  const depth = normalizeDepthImage(output.depth, sample.width, sample.height, model.invertDepth);
 
   return {
     backend,
@@ -61,7 +62,7 @@ async function loadDepthModel(backend: DepthBackendSelection): Promise<LoadedDep
         dtype: meta.dtype,
         use_external_data_format: meta.useExternalDataFormat,
       });
-      return { estimator, rawImage: RawImage };
+      return { estimator, invertDepth: meta.invertDepth ?? false, rawImage: RawImage };
     } catch (error) {
       lastError = error;
     }
@@ -87,7 +88,7 @@ function toRgb(image: ImageData): Uint8ClampedArray {
   return rgb;
 }
 
-function normalizeDepthImage(depthImage: DepthEstimationOutput["depth"], width: number, height: number): Float32Array {
+function normalizeDepthImage(depthImage: DepthEstimationOutput["depth"], width: number, height: number, invert: boolean): Float32Array {
   const depth = new Float32Array(width * height);
   const data = depthImage.data;
   const channels = depthImage.channels;
@@ -97,7 +98,8 @@ function normalizeDepthImage(depthImage: DepthEstimationOutput["depth"], width: 
     for (let x = 0; x < width; x += 1) {
       const sourceX = Math.min(depthImage.width - 1, Math.floor((x / width) * depthImage.width));
       const sourceIndex = (sourceY * depthImage.width + sourceX) * channels;
-      depth[y * width + x] = (data[sourceIndex] ?? 0) / 255;
+      const value = (data[sourceIndex] ?? 0) / 255;
+      depth[y * width + x] = invert ? 1 - value : value;
     }
   }
 

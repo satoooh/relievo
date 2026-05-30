@@ -79,7 +79,12 @@ export function decodeShareableState(hash: string): Partial<ShareableState> {
   }
 
   const backend = query.get("backend");
-  if (backend === "depth-anything-v2-base" || backend === "depth-anything-v2-small" || backend === "worker-cpu-heuristic") {
+  if (
+    backend === "depth-anything-v2-base" ||
+    backend === "depth-anything-v2-small" ||
+    backend === "apple-depth-pro-sharp" ||
+    backend === "worker-cpu-heuristic"
+  ) {
     params.depthBackend = backend;
   }
 

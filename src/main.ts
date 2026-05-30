@@ -470,6 +470,9 @@ function pipelineLabel(backend: RuntimeStats["backend"]): string {
   if (backend === "depth-anything-v2-small" || backend === "depth-anything-v2-base") {
     return "Transformers.js Depth Anything V2, q4 ONNX, WebGPU/WASM";
   }
+  if (backend === "apple-depth-pro-sharp") {
+    return "Transformers.js Apple Depth Pro, q4 ONNX, WebGPU/WASM";
+  }
 
   return "worker CPU heuristic, render loop decoupled";
 }

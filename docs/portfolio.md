@@ -25,7 +25,7 @@
 4. Technical Highlights
    - TypeScript + Vite + Tailwind CSS.
    - Three.js point-field relief renderer with OrbitControls.
-   - CPU heuristic and Depth Anything V2 depth backends with an isolated estimator boundary.
+   - CPU heuristic, Depth Anything V2, and Apple Depth Pro Sharp depth backends with an isolated estimator boundary.
    - Decoupled inference and render loops.
    - Shader-driven point relief animation.
    - MediaRecorder export with Web/Archive quality, MP4 preference, and WebM fallback.
