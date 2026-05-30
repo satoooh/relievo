@@ -1,7 +1,7 @@
 import "./style.css";
 import { defaultParams, qualityLabel } from "./params";
 import { DepthPipeline } from "./depth/DepthPipeline";
-import { depthBackendLabel, isDepthAnythingBackend } from "./depth/depthBackends";
+import { depthBackendLabel, isDepthAnythingBackend, isHighCostDepthBackend } from "./depth/depthBackends";
 import { TemporalSmoother } from "./depth/smoothing";
 import { CanvasRecorder, downloadCanvasPNG, timestamp } from "./export/capture";
 import { FrameSampler } from "./media/frameSampler";
@@ -154,6 +154,7 @@ function applyPreset(id: string): void {
 function animationLoop(now: number): void {
   stats.renderFPS = renderMeter.tick(now);
   stats.recording = recorder.recording;
+  renderInputPreview();
   renderer.render(params, stats);
 
   if (now - lastStatsSync > 160) {
@@ -182,7 +183,7 @@ function scheduleInference(generation: number): void {
     return;
   }
 
-  const interval = 1000 / Math.max(1, params.inferenceFPS);
+  const interval = inferenceIntervalMs();
   inferenceTimer = window.setTimeout(() => {
     const element = source.element;
     if (
@@ -274,10 +275,19 @@ function sync(): void {
 
 function pipelineLabel(backend: RuntimeStats["backend"]): string {
   if (backend === "depth-anything-v2-small" || backend === "depth-anything-v2-base") {
-    return "Transformers.js Depth Anything V2, q4, WebGPU/WASM";
+    return "Transformers.js Depth Anything V2, q4 ONNX, WebGPU/WASM";
   }
 
   return "worker CPU heuristic, render loop decoupled";
+}
+
+function inferenceIntervalMs(): number {
+  const requested = 1000 / Math.max(1, params.inferenceFPS);
+  if (isHighCostDepthBackend(params.depthBackend)) {
+    return Math.max(requested, 220);
+  }
+
+  return requested;
 }
 
 async function withUiError(label: string, action: () => Promise<void>): Promise<void> {
@@ -297,4 +307,53 @@ function setMessage(message: string): void {
     stats.message = "";
     sync();
   }, 6000);
+}
+
+function renderInputPreview(): void {
+  const element = source.element;
+  if (!element) {
+    return;
+  }
+
+  if (source.kind !== "image" && "readyState" in element && element.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+    return;
+  }
+
+  const canvas = elements.inputPreviewCanvas;
+  const rect = canvas.getBoundingClientRect();
+  const pixelRatio = Math.min(window.devicePixelRatio, 2);
+  const width = Math.max(1, Math.floor((rect.width || 260) * pixelRatio));
+  const height = Math.max(1, Math.floor((rect.height || 146) * pixelRatio));
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+  }
+
+  const context = canvas.getContext("2d");
+  if (!context) {
+    return;
+  }
+
+  context.clearRect(0, 0, width, height);
+  context.fillStyle = "#050607";
+  context.fillRect(0, 0, width, height);
+  drawCover(context, element, width, height);
+}
+
+function drawCover(
+  context: CanvasRenderingContext2D,
+  element: HTMLCanvasElement | HTMLImageElement | HTMLVideoElement,
+  width: number,
+  height: number,
+): void {
+  const sourceWidth = element instanceof HTMLVideoElement ? element.videoWidth : element.width;
+  const sourceHeight = element instanceof HTMLVideoElement ? element.videoHeight : element.height;
+  if (!sourceWidth || !sourceHeight) {
+    return;
+  }
+
+  const scale = Math.max(width / sourceWidth, height / sourceHeight);
+  const drawWidth = sourceWidth * scale;
+  const drawHeight = sourceHeight * scale;
+  context.drawImage(element, (width - drawWidth) * 0.5, (height - drawHeight) * 0.5, drawWidth, drawHeight);
 }

@@ -1,9 +1,11 @@
 import type { DepthBackend, DepthBackendSelection } from "../types";
 
 interface DepthBackendMeta {
+  dtype?: "fp32" | "q4";
   id: DepthBackendSelection;
   label: string;
   modelId?: string;
+  useExternalDataFormat?: boolean;
 }
 
 export const depthBackendOptions: DepthBackendMeta[] = [
@@ -11,11 +13,13 @@ export const depthBackendOptions: DepthBackendMeta[] = [
     id: "depth-anything-v2-small",
     label: "Depth Anything V2 Small",
     modelId: "onnx-community/depth-anything-v2-small",
+    dtype: "q4",
   },
   {
     id: "depth-anything-v2-base",
     label: "Depth Anything V2 Base",
     modelId: "onnx-community/depth-anything-v2-base",
+    dtype: "q4",
   },
   {
     id: "worker-cpu-heuristic",
@@ -35,5 +39,9 @@ export function depthBackendLabel(id: DepthBackend): string {
 }
 
 export function isDepthAnythingBackend(id: DepthBackendSelection): boolean {
-  return id === "depth-anything-v2-small" || id === "depth-anything-v2-base";
+  return id !== "worker-cpu-heuristic";
+}
+
+export function isHighCostDepthBackend(id: DepthBackendSelection): boolean {
+  return id === "depth-anything-v2-base";
 }

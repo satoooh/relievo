@@ -5,6 +5,7 @@ import { presets } from "../presets";
 
 export interface ViewElements {
   canvas: HTMLCanvasElement;
+  inputPreviewCanvas: HTMLCanvasElement;
   imageInput: HTMLInputElement;
   videoInput: HTMLInputElement;
   webcamButton: HTMLButtonElement;
@@ -76,6 +77,10 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
       <section class="absolute inset-0" aria-label="Relievo viewport">
         <canvas id="relievo-canvas" class="h-full w-full"></canvas>
       </section>
+
+      <div class="pointer-events-none absolute bottom-4 right-4 z-20 hidden w-[260px] overflow-hidden rounded border border-white/16 bg-black/44 shadow-2xl backdrop-blur-md md:block">
+        <canvas id="input-preview-canvas" class="block aspect-video w-full"></canvas>
+      </div>
 
       <header class="pointer-events-none absolute left-0 right-0 top-0 z-20 flex flex-col items-start justify-between gap-3 p-4 md:flex-row md:gap-4 md:p-5">
         <div class="max-w-[360px] rounded border border-white/8 bg-black/30 px-3 py-2 text-white/74 backdrop-blur-md">
@@ -175,6 +180,7 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
 
   return {
     canvas: mustGet<HTMLCanvasElement>("relievo-canvas"),
+    inputPreviewCanvas: mustGet<HTMLCanvasElement>("input-preview-canvas"),
     imageInput: mustGet<HTMLInputElement>("image-input"),
     videoInput: mustGet<HTMLInputElement>("video-input"),
     webcamButton: mustGet<HTMLButtonElement>("webcam-button"),

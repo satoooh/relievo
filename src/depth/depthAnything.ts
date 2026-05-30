@@ -58,7 +58,8 @@ async function loadDepthModel(backend: DepthBackendSelection): Promise<LoadedDep
     try {
       const estimator = await pipeline("depth-estimation", meta.modelId, {
         device,
-        dtype: "q4",
+        dtype: meta.dtype,
+        use_external_data_format: meta.useExternalDataFormat,
       });
       return { estimator, rawImage: RawImage };
     } catch (error) {

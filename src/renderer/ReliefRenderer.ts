@@ -10,22 +10,21 @@ export class ReliefRenderer {
   private readonly camera: THREE.PerspectiveCamera;
   private readonly controls: OrbitControls;
   private readonly geometry = new THREE.BufferGeometry();
-  private readonly material = new THREE.PointsMaterial({
-    size: 0.28,
-    map: createPointTexture(),
-    alphaTest: 0.02,
-    vertexColors: true,
+  private readonly uniforms = createReliefUniforms();
+  private readonly material = new THREE.ShaderMaterial({
+    uniforms: this.uniforms,
+    vertexShader,
+    fragmentShader,
     transparent: true,
-    opacity: 0.84,
-    sizeAttenuation: true,
     depthWrite: false,
     blending: THREE.NormalBlending,
   });
   private readonly points = new THREE.Points(this.geometry, this.material);
   private positions = new Float32Array();
+  private uvs = new Float32Array();
+  private depths = new Float32Array();
   private colors = new Float32Array();
-  private sourcePixels?: ImageData;
-  private depth?: Float32Array;
+  private seeds = new Float32Array();
   private width = 0;
   private height = 0;
   private animationFrame = 0;
@@ -56,8 +55,6 @@ export class ReliefRenderer {
 
   setFrame(sample: FrameSample, depth: Float32Array, params: ReliefParams): void {
     const needsRebuild = sample.width !== this.width || sample.height !== this.height;
-    this.sourcePixels = sample.data;
-    this.depth = depth;
 
     if (needsRebuild) {
       this.width = sample.width;
@@ -65,7 +62,8 @@ export class ReliefRenderer {
       this.rebuildGeometry(sample.width, sample.height);
     }
 
-    this.updateGeometry(params, performance.now());
+    this.updateFrameAttributes(sample, depth);
+    this.updateUniforms(params, performance.now());
   }
 
   restartIntro(): void {
@@ -75,9 +73,7 @@ export class ReliefRenderer {
   render(params: ReliefParams, stats: RuntimeStats): void {
     const now = performance.now();
     this.resize(params.renderScale);
-    this.updateGeometry(params, now);
-    this.material.size = params.pointSize;
-    this.material.opacity = params.pointOpacity;
+    this.updateUniforms(params, now);
     this.renderer.autoClear = true;
     this.points.rotation.y = 0;
     this.controls.update();
@@ -117,26 +113,11 @@ export class ReliefRenderer {
   private rebuildGeometry(width: number, height: number): void {
     const count = width * height;
     this.positions = new Float32Array(count * 3);
+    this.uvs = new Float32Array(count * 2);
+    this.depths = new Float32Array(count);
     this.colors = new Float32Array(count * 3);
-    this.geometry.setAttribute("position", new THREE.BufferAttribute(this.positions, 3));
-    this.geometry.setAttribute("color", new THREE.BufferAttribute(this.colors, 3));
-    this.geometry.computeBoundingSphere();
-  }
-
-  private updateGeometry(params: ReliefParams, now: number): void {
-    if (!this.depth || !this.sourcePixels || this.positions.length === 0) {
-      return;
-    }
-
-    const image = this.sourcePixels.data;
+    this.seeds = new Float32Array(count);
     const aspect = this.width / this.height;
-    const breathing = 1 + Math.sin((now - this.startedAt) * 0.0018) * params.breathing;
-    const elapsedMs = now - this.startedAt;
-    const introMorph = easeOutCubic(clamp01((elapsedMs * (0.45 + params.morphSpeed)) / 4200));
-    const scan = scanThreshold(params, now - this.startedAt);
-    const quantizeSteps = Math.max(0, Math.round(params.depthQuantize));
-    const near = Math.min(params.nearThreshold, params.farThreshold - 0.02);
-    const far = Math.max(params.farThreshold, near + 0.02);
 
     for (let y = 0; y < this.height; y += 1) {
       const yn = this.height <= 1 ? 0 : y / (this.height - 1);
@@ -144,67 +125,64 @@ export class ReliefRenderer {
         const xn = this.width <= 1 ? 0 : x / (this.width - 1);
         const index = y * this.width + x;
         const positionIndex = index * 3;
-        const pixelIndex = index * 4;
-        const scanAxis = scanValue(params.scanDirection, xn, yn);
-        const revealed = scanAxis <= scan ? 1 : 0.08;
-        const noise = pseudoNoise(x, y, now);
-        const staticNoise = pseudoNoise(x, y, 0);
-        const glitch = params.glitchAmount > 0 ? noise * params.glitchAmount : 0;
-        let z = this.depth[index] ?? 0;
-        z = Math.pow(z, params.depthGamma);
-
-        if (quantizeSteps > 1) {
-          z = Math.round(z * quantizeSteps) / quantizeSteps;
-        }
-
-        const depthWindow = smoothstep(near, near + 0.04, z) * (1 - smoothstep(far - 0.04, far, z));
-        const foreground = Math.min(1, z + params.foregroundBoost * z);
-        const trailWave = Math.sin((now - this.startedAt) * 0.003 + x * 0.13 + y * 0.07) * params.trailAmount;
-        const localMorph = smoothstep(
-          0,
-          1,
-          introMorph * 1.18 - scanAxis * 0.16 + z * 0.08 + staticNoise * 0.025,
-        );
-        const settledMotion = 1 + Math.sin(elapsedMs * 0.0012 + staticNoise * 2.4) * params.breathing * 0.35;
-        const displaced =
-          (z + glitch + trailWave) *
-          params.depthScale *
-          params.morphAmount *
-          localMorph *
-          breathing *
-          settledMotion *
-          revealed;
+        const uvIndex = index * 2;
         this.positions[positionIndex] = (xn - 0.5) * aspect * 3.95;
         this.positions[positionIndex + 1] = (0.5 - yn) * 3.95;
-        this.positions[positionIndex + 2] = displaced - params.depthScale * 0.45;
-
-        const r = (image[pixelIndex] ?? 0) / 255;
-        const g = (image[pixelIndex + 1] ?? 0) / 255;
-        const b = (image[pixelIndex + 2] ?? 0) / 255;
-        const mono = (r + g + b) / 3;
-        const fade = params.backgroundFade + foreground * (1 - params.backgroundFade);
-        const strength = params.colorStrength;
-        const scanTint = revealed < 1 ? 0.24 : 1;
-        const depthShade = Math.pow(z, 0.72);
-        const texture = params.monochrome ? mono : (r + g + b) / 3;
-        const reliefTone = depthShade * (1 - params.textureMix) + texture * params.textureMix;
-        const pointLight = reliefTone * fade * depthWindow * scanTint * params.brightness * (0.38 + localMorph * 0.62);
-
-        if (params.monochrome) {
-          this.colors[positionIndex] = clamp01(pointLight * 0.78);
-          this.colors[positionIndex + 1] = clamp01(pointLight * 0.82);
-          this.colors[positionIndex + 2] = clamp01(pointLight * 0.9);
-        } else {
-          this.colors[positionIndex] = colorChannel(r * pointLight, strength, 1, 1, 0.18);
-          this.colors[positionIndex + 1] = colorChannel(g * pointLight, strength, 1, 1, 0.42);
-          this.colors[positionIndex + 2] = colorChannel(b * pointLight, strength, 1, 1, 0.72);
-        }
+        this.positions[positionIndex + 2] = 0;
+        this.uvs[uvIndex] = xn;
+        this.uvs[uvIndex + 1] = yn;
+        this.seeds[index] = pseudoNoise(x, y, 0);
       }
     }
 
-    this.geometry.attributes.position!.needsUpdate = true;
-    this.geometry.attributes.color!.needsUpdate = true;
+    this.geometry.setAttribute("position", new THREE.BufferAttribute(this.positions, 3));
+    this.geometry.setAttribute("aUv", new THREE.BufferAttribute(this.uvs, 2));
+    this.geometry.setAttribute("aDepth", new THREE.BufferAttribute(this.depths, 1));
+    this.geometry.setAttribute("aColor", new THREE.BufferAttribute(this.colors, 3));
+    this.geometry.setAttribute("aSeed", new THREE.BufferAttribute(this.seeds, 1));
     this.geometry.computeBoundingSphere();
+  }
+
+  private updateFrameAttributes(sample: FrameSample, depth: Float32Array): void {
+    const image = sample.data.data;
+    for (let index = 0; index < depth.length; index += 1) {
+      const pixelIndex = index * 4;
+      const colorIndex = index * 3;
+      this.depths[index] = depth[index] ?? 0;
+      this.colors[colorIndex] = (image[pixelIndex] ?? 0) / 255;
+      this.colors[colorIndex + 1] = (image[pixelIndex + 1] ?? 0) / 255;
+      this.colors[colorIndex + 2] = (image[pixelIndex + 2] ?? 0) / 255;
+    }
+
+    this.geometry.attributes.aDepth!.needsUpdate = true;
+    this.geometry.attributes.aColor!.needsUpdate = true;
+  }
+
+  private updateUniforms(params: ReliefParams, now: number): void {
+    const elapsedMs = now - this.startedAt;
+    const near = Math.min(params.nearThreshold, params.farThreshold - 0.02);
+    const far = Math.max(params.farThreshold, near + 0.02);
+    this.uniforms.uBackgroundFade.value = params.backgroundFade;
+    this.uniforms.uBrightness.value = params.brightness;
+    this.uniforms.uBreathing.value = params.breathing;
+    this.uniforms.uColorStrength.value = params.colorStrength;
+    this.uniforms.uDepthGamma.value = params.depthGamma;
+    this.uniforms.uDepthQuantize.value = Math.max(0, Math.round(params.depthQuantize));
+    this.uniforms.uDepthScale.value = params.depthScale;
+    this.uniforms.uElapsed.value = elapsedMs;
+    this.uniforms.uFarThreshold.value = far;
+    this.uniforms.uForegroundBoost.value = params.foregroundBoost;
+    this.uniforms.uGlitchAmount.value = params.glitchAmount;
+    this.uniforms.uIntroMorph.value = easeOutCubic(clamp01((elapsedMs * (0.45 + params.morphSpeed)) / 4200));
+    this.uniforms.uMonochrome.value = params.monochrome ? 1 : 0;
+    this.uniforms.uMorphAmount.value = params.morphAmount;
+    this.uniforms.uNearThreshold.value = near;
+    this.uniforms.uPointOpacity.value = params.pointOpacity;
+    this.uniforms.uPointSize.value = params.pointSize;
+    this.uniforms.uScanDirection.value = scanDirectionIndex(params.scanDirection);
+    this.uniforms.uScan.value = scanThreshold(params, elapsedMs);
+    this.uniforms.uTextureMix.value = params.textureMix;
+    this.uniforms.uTrailAmount.value = params.trailAmount;
   }
 
   private resize(renderScale: number): void {
@@ -216,17 +194,14 @@ export class ReliefRenderer {
 
     if (this.canvas.width !== width || this.canvas.height !== height) {
       this.renderer.setSize(width, height, false);
+      this.uniforms.uPixelRatio.value = this.renderer.getPixelRatio();
+      this.uniforms.uViewportHeight.value = height;
       this.canvas.style.width = `${displayWidth}px`;
       this.canvas.style.height = `${displayHeight}px`;
       this.camera.aspect = displayWidth / displayHeight;
       this.camera.updateProjectionMatrix();
     }
   }
-}
-
-function colorChannel(value: number, strength: number, fade: number, scanTint: number, tint: number): number {
-  const colored = value * strength + tint * (1 - strength);
-  return clamp01(colored * fade * scanTint);
 }
 
 function scanThreshold(params: ReliefParams, elapsedMs: number): number {
@@ -238,17 +213,17 @@ function scanThreshold(params: ReliefParams, elapsedMs: number): number {
   return Math.min(1, Math.max(params.scanReveal, autoScan));
 }
 
-function scanValue(direction: ReliefParams["scanDirection"], xn: number, yn: number): number {
+function scanDirectionIndex(direction: ReliefParams["scanDirection"]): number {
   switch (direction) {
     case "right-left":
-      return 1 - xn;
+      return 1;
     case "top-bottom":
-      return yn;
+      return 2;
     case "bottom-top":
-      return 1 - yn;
+      return 3;
     case "left-right":
     default:
-      return xn;
+      return 0;
   }
 }
 
@@ -261,30 +236,145 @@ function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
-function createPointTexture(): THREE.CanvasTexture {
-  const canvas = document.createElement("canvas");
-  const size = 64;
-  canvas.width = size;
-  canvas.height = size;
-  const context = canvas.getContext("2d");
-
-  if (context) {
-    context.fillStyle = "rgba(255,255,255,1)";
-    context.beginPath();
-    context.arc(32, 32, 5, 0, Math.PI * 2);
-    context.fill();
-  }
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
-
-function smoothstep(edge0: number, edge1: number, value: number): number {
-  const t = Math.min(1, Math.max(0, (value - edge0) / Math.max(0.0001, edge1 - edge0)));
-  return t * t * (3 - 2 * t);
-}
-
 function easeOutCubic(value: number): number {
   return 1 - Math.pow(1 - value, 3);
 }
+
+function createReliefUniforms() {
+  return {
+    uBackgroundFade: { value: 0.72 },
+    uBrightness: { value: 0.72 },
+    uBreathing: { value: 0.01 },
+    uColorStrength: { value: 1 },
+    uDepthGamma: { value: 1.42 },
+    uDepthQuantize: { value: 0 },
+    uDepthScale: { value: 3.3 },
+    uElapsed: { value: 0 },
+    uFarThreshold: { value: 1 },
+    uForegroundBoost: { value: 0.72 },
+    uGlitchAmount: { value: 0.01 },
+    uIntroMorph: { value: 0 },
+    uMonochrome: { value: 0 },
+    uMorphAmount: { value: 1 },
+    uNearThreshold: { value: 0 },
+    uPixelRatio: { value: 1 },
+    uPointOpacity: { value: 0.64 },
+    uPointSize: { value: 0.22 },
+    uScan: { value: 1 },
+    uScanDirection: { value: 0 },
+    uTextureMix: { value: 0.62 },
+    uTrailAmount: { value: 0 },
+    uViewportHeight: { value: 720 },
+  };
+}
+
+const vertexShader = `
+  attribute vec2 aUv;
+  attribute float aDepth;
+  attribute vec3 aColor;
+  attribute float aSeed;
+
+  uniform float uBackgroundFade;
+  uniform float uBrightness;
+  uniform float uBreathing;
+  uniform float uColorStrength;
+  uniform float uDepthGamma;
+  uniform float uDepthQuantize;
+  uniform float uDepthScale;
+  uniform float uElapsed;
+  uniform float uFarThreshold;
+  uniform float uForegroundBoost;
+  uniform float uGlitchAmount;
+  uniform float uIntroMorph;
+  uniform float uMonochrome;
+  uniform float uMorphAmount;
+  uniform float uNearThreshold;
+  uniform float uPixelRatio;
+  uniform float uPointOpacity;
+  uniform float uPointSize;
+  uniform float uScan;
+  uniform float uScanDirection;
+  uniform float uTextureMix;
+  uniform float uTrailAmount;
+  uniform float uViewportHeight;
+
+  varying vec3 vColor;
+  varying float vAlpha;
+
+  float random(vec2 value) {
+    return fract(sin(dot(value, vec2(12.9898, 78.233))) * 43758.5453) * 2.0 - 1.0;
+  }
+
+  float scanAxis(vec2 uv) {
+    if (uScanDirection < 0.5) {
+      return uv.x;
+    }
+    if (uScanDirection < 1.5) {
+      return 1.0 - uv.x;
+    }
+    if (uScanDirection < 2.5) {
+      return uv.y;
+    }
+    return 1.0 - uv.y;
+  }
+
+  vec3 colorChannel(vec3 value, float strength) {
+    vec3 tint = vec3(0.18, 0.42, 0.72);
+    return clamp(value * strength + tint * (1.0 - strength), 0.0, 1.0);
+  }
+
+  void main() {
+    float axis = scanAxis(aUv);
+    float revealed = axis <= uScan ? 1.0 : 0.08;
+    float animatedNoise = random(aUv * 2048.0 + floor(uElapsed / 120.0) * 0.31);
+    float z = pow(clamp(aDepth, 0.0, 1.0), uDepthGamma);
+
+    if (uDepthQuantize > 1.0) {
+      z = floor(z * uDepthQuantize + 0.5) / uDepthQuantize;
+    }
+
+    float depthWindow = smoothstep(uNearThreshold, uNearThreshold + 0.04, z) *
+      (1.0 - smoothstep(uFarThreshold - 0.04, uFarThreshold, z));
+    float foreground = clamp(z + uForegroundBoost * z, 0.0, 1.0);
+    float trailWave = sin(uElapsed * 0.003 + aUv.x * 68.0 + aUv.y * 37.0) * uTrailAmount;
+    float localMorph = smoothstep(0.0, 1.0, uIntroMorph * 1.18 - axis * 0.16 + z * 0.08 + aSeed * 0.025);
+    float breathing = 1.0 + sin(uElapsed * 0.0018) * uBreathing;
+    float settledMotion = 1.0 + sin(uElapsed * 0.0012 + aSeed * 2.4) * uBreathing * 0.35;
+    float glitch = animatedNoise * uGlitchAmount;
+    float displaced = (z + glitch + trailWave) * uDepthScale * uMorphAmount * localMorph * breathing * settledMotion * revealed;
+
+    vec3 transformed = position;
+    transformed.z = displaced - uDepthScale * 0.45;
+
+    float mono = dot(aColor, vec3(0.333333));
+    float fade = uBackgroundFade + foreground * (1.0 - uBackgroundFade);
+    float scanTint = revealed < 1.0 ? 0.24 : 1.0;
+    float depthShade = pow(z, 0.72);
+    float texture = mix(mono, mono, uMonochrome);
+    float reliefTone = mix(depthShade, texture, uTextureMix);
+    float pointLight = reliefTone * fade * depthWindow * scanTint * uBrightness * (0.38 + localMorph * 0.62);
+    vec3 litColor = colorChannel(aColor * pointLight, uColorStrength);
+    vec3 monoColor = vec3(pointLight * 0.78, pointLight * 0.82, pointLight * 0.9);
+    vColor = mix(litColor, monoColor, step(0.5, uMonochrome));
+    vAlpha = clamp(depthWindow * uPointOpacity * (0.18 + localMorph * 0.82), 0.0, 1.0);
+
+    vec4 mvPosition = modelViewMatrix * vec4(transformed, 1.0);
+    gl_PointSize = max(1.0, uPointSize * uViewportHeight * uPixelRatio * 0.078 / max(0.1, -mvPosition.z));
+    gl_Position = projectionMatrix * mvPosition;
+  }
+`;
+
+const fragmentShader = `
+  varying vec3 vColor;
+  varying float vAlpha;
+
+  void main() {
+    vec2 centered = gl_PointCoord - vec2(0.5);
+    float distanceFromCenter = length(centered);
+    float mask = smoothstep(0.5, 0.28, distanceFromCenter);
+    if (mask <= 0.02) {
+      discard;
+    }
+    gl_FragColor = vec4(vColor, vAlpha * mask);
+  }
+`;

@@ -6,7 +6,13 @@ export function createAdvancedGui(params: ReliefParams, onChange: () => void): G
   gui.close();
 
   const depth = gui.addFolder("Depth");
-  depth.add(params, "depthBackend", ["depth-anything-v2-small", "depth-anything-v2-base", "worker-cpu-heuristic"]).onChange(onChange);
+  depth
+    .add(params, "depthBackend", [
+      "depth-anything-v2-small",
+      "depth-anything-v2-base",
+      "worker-cpu-heuristic",
+    ])
+    .onChange(onChange);
   depth.add(params, "depthScale", 0, 6, 0.05).onChange(onChange);
   depth.add(params, "depthGamma", 0.3, 2.4, 0.01).onChange(onChange);
   depth.add(params, "temporalSmoothing", 0, 0.96, 0.01).onChange(onChange);
