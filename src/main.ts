@@ -38,6 +38,7 @@ let currentPresetId = initialPresetId;
 let inferenceTimer = 0;
 let inferenceGeneration = 0;
 let clearMessageTimer = 0;
+let forcedInferenceRetryTimer = 0;
 
 const stats: RuntimeStats = {
   renderFPS: 0,
@@ -61,6 +62,10 @@ bindEvents();
 startInferenceLoop(true);
 
 function bindEvents(): void {
+  elements.imageInput.addEventListener("click", () => {
+    elements.imageInput.value = "";
+  });
+
   elements.imageInput.addEventListener("change", async () => {
     const file = elements.imageInput.files?.[0];
     if (file) {
@@ -68,6 +73,10 @@ function bindEvents(): void {
         await setSource(await createImageSource(file));
       });
     }
+  });
+
+  elements.videoInput.addEventListener("click", () => {
+    elements.videoInput.value = "";
   });
 
   elements.videoInput.addEventListener("change", async () => {
@@ -120,6 +129,7 @@ function bindEvents(): void {
 
   window.addEventListener("beforeunload", () => {
     window.clearTimeout(inferenceTimer);
+    window.clearTimeout(forcedInferenceRetryTimer);
     source.stop();
     depthPipeline.dispose();
     renderer.stop();
@@ -169,9 +179,16 @@ function startInferenceLoop(forceFirst: boolean): void {
   inferenceGeneration += 1;
   const generation = inferenceGeneration;
   window.clearTimeout(inferenceTimer);
+  window.clearTimeout(forcedInferenceRetryTimer);
 
   if (forceFirst) {
-    void runInference(true).finally(() => scheduleInference(generation));
+    void runInference(true, generation).then((processed) => {
+      if (!processed) {
+        retryForcedInference(generation);
+        return;
+      }
+      scheduleInference(generation);
+    });
     return;
   }
 
@@ -192,31 +209,52 @@ function scheduleInference(generation: number): void {
       typeof element.requestVideoFrameCallback === "function"
     ) {
       element.requestVideoFrameCallback(() => {
-        void runInference(false).finally(() => scheduleInference(generation));
+        void runInference(false, generation).finally(() => scheduleInference(generation));
       });
       return;
     }
 
-    void runInference(false).finally(() => scheduleInference(generation));
+    void runInference(false, generation).finally(() => scheduleInference(generation));
   }, interval);
 }
 
-async function runInference(force: boolean): Promise<void> {
-  if (depthPipeline.busy) {
+function retryForcedInference(generation: number): void {
+  if (generation !== inferenceGeneration) {
     return;
+  }
+
+  window.clearTimeout(forcedInferenceRetryTimer);
+  forcedInferenceRetryTimer = window.setTimeout(() => {
+    void runInference(true, generation).then((processed) => {
+      if (!processed) {
+        retryForcedInference(generation);
+        return;
+      }
+      scheduleInference(generation);
+    });
+  }, 80);
+}
+
+async function runInference(force: boolean, generation: number): Promise<boolean> {
+  if (generation !== inferenceGeneration) {
+    return true;
+  }
+
+  if (depthPipeline.busy) {
+    return false;
   }
 
   const element = source.element;
   if (!element) {
-    return;
+    return true;
   }
 
   if (!force && source.kind === "image") {
-    return;
+    return true;
   }
 
   if (source.kind !== "image" && "readyState" in element && element.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
-    return;
+    return false;
   }
 
   adaptQuality();
@@ -230,11 +268,19 @@ async function runInference(force: boolean): Promise<void> {
   try {
     result = await depthPipeline.estimate(sample, params.depthBackend);
   } catch (error) {
+    if (generation !== inferenceGeneration) {
+      return true;
+    }
+
     const detail = error instanceof Error ? error.message : String(error);
     setMessage(`${depthBackendLabel(params.depthBackend)} failed. Falling back to heuristic. ${detail}`);
     params.depthBackend = "worker-cpu-heuristic";
     smoother.reset();
     result = await depthPipeline.estimate(sample, params.depthBackend);
+  }
+
+  if (generation !== inferenceGeneration) {
+    return true;
   }
 
   const smoothed = smoother.smooth(result.depth, params.temporalSmoothing);
@@ -246,6 +292,7 @@ async function runInference(force: boolean): Promise<void> {
   stats.sourceKind = source.kind;
   stats.quality = qualityLabel(params);
   stats.pipeline = pipelineLabel(result.backend);
+  return true;
 }
 
 function adaptQuality(): void {
@@ -346,8 +393,18 @@ function drawCover(
   width: number,
   height: number,
 ): void {
-  const sourceWidth = element instanceof HTMLVideoElement ? element.videoWidth : element.width;
-  const sourceHeight = element instanceof HTMLVideoElement ? element.videoHeight : element.height;
+  const sourceWidth =
+    element instanceof HTMLVideoElement
+      ? element.videoWidth
+      : element instanceof HTMLImageElement
+        ? element.naturalWidth
+        : element.width;
+  const sourceHeight =
+    element instanceof HTMLVideoElement
+      ? element.videoHeight
+      : element instanceof HTMLImageElement
+        ? element.naturalHeight
+        : element.height;
   if (!sourceWidth || !sourceHeight) {
     return;
   }

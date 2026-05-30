@@ -15,7 +15,12 @@ export async function createImageSource(file: File): Promise<MediaSourceHandle> 
   const image = new Image();
   image.decoding = "async";
   image.src = url;
-  await image.decode();
+  try {
+    await image.decode().catch(() => waitForImageLoad(image));
+  } catch (error) {
+    URL.revokeObjectURL(url);
+    throw error;
+  }
 
   return {
     kind: "image",
@@ -32,7 +37,14 @@ export async function createVideoSource(file: File): Promise<MediaSourceHandle> 
   video.muted = true;
   video.playsInline = true;
   video.controls = false;
-  await video.play();
+  video.preload = "auto";
+  try {
+    await waitForVideoMetadata(video);
+    await video.play();
+  } catch (error) {
+    URL.revokeObjectURL(url);
+    throw error;
+  }
 
   return {
     kind: "video",
@@ -42,6 +54,28 @@ export async function createVideoSource(file: File): Promise<MediaSourceHandle> 
       URL.revokeObjectURL(url);
     },
   };
+}
+
+function waitForImageLoad(image: HTMLImageElement): Promise<void> {
+  if (image.complete && image.naturalWidth > 0) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve, reject) => {
+    image.addEventListener("load", () => resolve(), { once: true });
+    image.addEventListener("error", () => reject(new Error("Image decode failed.")), { once: true });
+  });
+}
+
+function waitForVideoMetadata(video: HTMLVideoElement): Promise<void> {
+  if (video.readyState >= HTMLMediaElement.HAVE_METADATA && video.videoWidth > 0 && video.videoHeight > 0) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve, reject) => {
+    video.addEventListener("loadedmetadata", () => resolve(), { once: true });
+    video.addEventListener("error", () => reject(new Error("Video metadata could not be loaded.")), { once: true });
+  });
 }
 
 export async function createWebcamSource(): Promise<MediaSourceHandle> {
