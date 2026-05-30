@@ -2,6 +2,8 @@ export type SourceKind = "demo" | "image" | "video" | "webcam";
 
 export type ScanDirection = "left-right" | "right-left" | "top-bottom" | "bottom-top";
 
+export type DemoSceneId = "studio" | "mountain" | "product" | "alley" | "motion-sweep";
+
 export type DepthBackendSelection = "worker-cpu-heuristic" | "depth-anything-v2-small" | "depth-anything-v2-base";
 
 export type DepthBackend = "cpu-heuristic" | DepthBackendSelection;

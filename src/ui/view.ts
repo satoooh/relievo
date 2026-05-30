@@ -1,5 +1,6 @@
 import { depthBackendLabel, depthBackendOptions } from "../depth/depthBackends";
-import type { DepthBackendSelection, ReliefParams, RuntimeStats, ScanDirection } from "../types";
+import { demoScenes } from "../media/demoScenes";
+import type { DemoSceneId, DepthBackendSelection, ReliefParams, RuntimeStats, ScanDirection } from "../types";
 import { presets } from "../presets";
 
 export interface ViewElements {
@@ -8,6 +9,7 @@ export interface ViewElements {
   videoInput: HTMLInputElement;
   webcamButton: HTMLButtonElement;
   demoButton: HTMLButtonElement;
+  demoSceneSelect: HTMLSelectElement;
   screenshotButton: HTMLButtonElement;
   recordButton: HTMLButtonElement;
   presetSelect: HTMLSelectElement;
@@ -99,6 +101,8 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
           <button id="demo-button" class="rounded border border-white/12 bg-white/8 px-3 py-2 text-sm hover:bg-white/14">Demo</button>
         </div>
 
+        <select id="demo-scene-select" class="mt-2 w-full rounded border border-white/12 bg-[#12161d] px-3 py-2 text-sm text-white"></select>
+
         <div class="mt-3 grid grid-cols-[1fr_auto_auto] gap-2">
           <select id="preset-select" class="min-w-0 rounded border border-white/12 bg-[#12161d] px-3 py-2 text-sm text-white"></select>
           <button id="screenshot-button" class="rounded border border-white/12 bg-white px-3 py-2 text-sm font-medium text-black hover:bg-white/88">PNG</button>
@@ -156,6 +160,11 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
     depthBackendSelect.insertAdjacentHTML("beforeend", `<option value="${backend.id}">${backend.label}</option>`);
   }
 
+  const demoSceneSelect = mustGet<HTMLSelectElement>("demo-scene-select");
+  for (const scene of demoScenes) {
+    demoSceneSelect.insertAdjacentHTML("beforeend", `<option value="${scene.id}">${scene.name}</option>`);
+  }
+
   const adaptiveQuality = mustGet<HTMLInputElement>("adaptive-quality");
   const monochrome = mustGet<HTMLInputElement>("monochrome");
   const scanDirection = mustGet<HTMLSelectElement>("scan-direction");
@@ -170,6 +179,7 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
     videoInput: mustGet<HTMLInputElement>("video-input"),
     webcamButton: mustGet<HTMLButtonElement>("webcam-button"),
     demoButton: mustGet<HTMLButtonElement>("demo-button"),
+    demoSceneSelect,
     screenshotButton: mustGet<HTMLButtonElement>("screenshot-button"),
     recordButton: mustGet<HTMLButtonElement>("record-button"),
     presetSelect,
@@ -242,6 +252,10 @@ export function bindParamControls(
     params.depthBackend = elements.depthBackendSelect.value as DepthBackendSelection;
     onChange();
   });
+}
+
+export function readDemoScene(elements: ViewElements): DemoSceneId {
+  return elements.demoSceneSelect.value as DemoSceneId;
 }
 
 function formatNumber(value: number): string {

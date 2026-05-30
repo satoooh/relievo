@@ -5,11 +5,12 @@ import { depthBackendLabel, isDepthAnythingBackend } from "./depth/depthBackends
 import { TemporalSmoother } from "./depth/smoothing";
 import { CanvasRecorder, downloadCanvasPNG, timestamp } from "./export/capture";
 import { FrameSampler } from "./media/frameSampler";
+import { initialDemoSceneId } from "./media/demoScenes";
 import { createDemoSource, createImageSource, createVideoSource, createWebcamSource } from "./media/mediaSources";
 import { findPreset, initialPresetId } from "./presets";
 import { ReliefRenderer } from "./renderer/ReliefRenderer";
 import { createAdvancedGui } from "./ui/lilGui";
-import { bindParamControls, createView, syncView } from "./ui/view";
+import { bindParamControls, createView, readDemoScene, syncView } from "./ui/view";
 import { RateMeter, detectWebGPU } from "./performance";
 import type { MediaSourceHandle, ReliefParams, RuntimeStats } from "./types";
 
@@ -30,7 +31,8 @@ const renderMeter = new RateMeter();
 const inferenceMeter = new RateMeter();
 const gui = createAdvancedGui(params, () => sync());
 
-let source: MediaSourceHandle = createDemoSource();
+let currentDemoSceneId = initialDemoSceneId;
+let source: MediaSourceHandle = createDemoSource(currentDemoSceneId);
 let lastStatsSync = 0;
 let currentPresetId = initialPresetId;
 let inferenceTimer = 0;
@@ -52,6 +54,7 @@ const stats: RuntimeStats = {
 };
 
 elements.presetSelect.value = initialPresetId;
+elements.demoSceneSelect.value = currentDemoSceneId;
 
 bindParamControls(elements, params, () => sync());
 bindEvents();
@@ -83,7 +86,12 @@ function bindEvents(): void {
   });
 
   elements.demoButton.addEventListener("click", async () => {
-    await setSource(createDemoSource());
+    await setSource(createDemoSource(currentDemoSceneId));
+  });
+
+  elements.demoSceneSelect.addEventListener("change", async () => {
+    currentDemoSceneId = readDemoScene(elements);
+    await setSource(createDemoSource(currentDemoSceneId));
   });
 
   elements.screenshotButton.addEventListener("click", async () => {

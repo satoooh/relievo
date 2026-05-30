@@ -1,4 +1,5 @@
-import type { FrameSample, SourceKind } from "../types";
+import type { DemoSceneId, FrameSample, SourceKind } from "../types";
+import { findDemoScene } from "./demoScenes";
 
 export class FrameSampler {
   private readonly canvas = document.createElement("canvas");
@@ -24,61 +25,122 @@ export class FrameSampler {
   }
 }
 
-export function createDemoCanvas(width = 1280, height = 720): HTMLCanvasElement {
+interface DemoCanvasHandle {
+  canvas: HTMLCanvasElement;
+  stop: () => void;
+}
+
+export function createDemoCanvas(sceneId: DemoSceneId, width = 1280, height = 720): DemoCanvasHandle {
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d");
   canvas.width = width;
   canvas.height = height;
 
   if (!context) {
-    return canvas;
+    return { canvas, stop: () => undefined };
   }
 
+  drawFallback(context, width, height);
+
+  const scene = findDemoScene(sceneId);
+  const images = scene.imagePaths.map((path) => loadDemoImage(path));
+  let animationFrame = 0;
+  let stopped = false;
+
+  if (scene.motion) {
+    const animate = (now: number) => {
+      if (stopped) {
+        return;
+      }
+      drawMotionScene(context, images, width, height, now);
+      animationFrame = window.requestAnimationFrame(animate);
+    };
+    animationFrame = window.requestAnimationFrame(animate);
+  } else {
+    const image = images[0];
+    if (image) {
+      const drawStaticImage = () => drawCoverImage(context, image, width, height);
+      if (image.complete && image.naturalWidth > 0) {
+        drawStaticImage();
+      } else {
+        image.addEventListener("load", drawStaticImage);
+      }
+    }
+  }
+
+  return {
+    canvas,
+    stop: () => {
+      stopped = true;
+      window.cancelAnimationFrame(animationFrame);
+    },
+  };
+}
+
+function loadDemoImage(path: string): HTMLImageElement {
   const image = new Image();
   image.decoding = "async";
-  image.src = "/demo/studio-depth-demo.png";
-  image.addEventListener("load", () => {
-    context.clearRect(0, 0, width, height);
-    context.drawImage(image, 0, 0, width, height);
-  });
+  image.src = path;
+  return image;
+}
 
+function drawMotionScene(
+  context: CanvasRenderingContext2D,
+  images: HTMLImageElement[],
+  width: number,
+  height: number,
+  now: number,
+): void {
+  const loaded = images.filter((image) => image.complete && image.naturalWidth > 0);
+  if (loaded.length === 0) {
+    return;
+  }
+
+  const cycleMs = 6400;
+  const progress = (now % cycleMs) / cycleMs;
+  const index = Math.floor((now / cycleMs) % loaded.length);
+  const current = loaded[index]!;
+  const next = loaded[(index + 1) % loaded.length]!;
+  const fade = smoothstep(0.68, 1, progress);
+  const pan = Math.sin(progress * Math.PI * 2) * 0.028;
+  const zoom = 1.045 + Math.sin(progress * Math.PI) * 0.035;
+
+  context.clearRect(0, 0, width, height);
+  drawCoverImage(context, current, width, height, zoom, pan);
+  if (fade > 0) {
+    context.save();
+    context.globalAlpha = fade;
+    drawCoverImage(context, next, width, height, 1.04, -pan);
+    context.restore();
+  }
+}
+
+function drawCoverImage(
+  context: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  width: number,
+  height: number,
+  zoom = 1,
+  horizontalPan = 0,
+): void {
+  const scale = Math.max(width / image.naturalWidth, height / image.naturalHeight) * zoom;
+  const drawWidth = image.naturalWidth * scale;
+  const drawHeight = image.naturalHeight * scale;
+  const x = (width - drawWidth) * 0.5 + width * horizontalPan;
+  const y = (height - drawHeight) * 0.5;
+  context.drawImage(image, x, y, drawWidth, drawHeight);
+}
+
+function smoothstep(edge0: number, edge1: number, value: number): number {
+  const t = Math.min(1, Math.max(0, (value - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
+function drawFallback(context: CanvasRenderingContext2D, width: number, height: number): void {
   const gradient = context.createLinearGradient(0, 0, width, height);
   gradient.addColorStop(0, "#06131d");
   gradient.addColorStop(0.42, "#1a766f");
   gradient.addColorStop(1, "#f0b66a");
   context.fillStyle = gradient;
   context.fillRect(0, 0, width, height);
-
-  context.fillStyle = "rgba(255,255,255,0.08)";
-  for (let i = 0; i < 34; i += 1) {
-    const x = (i * 97) % width;
-    const y = (i * 53) % height;
-    context.beginPath();
-    context.arc(x, y, 18 + ((i * 7) % 48), 0, Math.PI * 2);
-    context.fill();
-  }
-
-  context.fillStyle = "rgba(246,250,255,0.88)";
-  context.beginPath();
-  context.ellipse(width * 0.5, height * 0.43, width * 0.12, height * 0.18, -0.08, 0, Math.PI * 2);
-  context.fill();
-
-  context.fillStyle = "rgba(20,28,36,0.92)";
-  context.beginPath();
-  context.moveTo(width * 0.34, height * 0.84);
-  context.bezierCurveTo(width * 0.39, height * 0.58, width * 0.62, height * 0.58, width * 0.68, height * 0.84);
-  context.closePath();
-  context.fill();
-
-  context.strokeStyle = "rgba(236,255,247,0.42)";
-  context.lineWidth = 3;
-  for (let y = 0; y < 8; y += 1) {
-    context.beginPath();
-    const yy = height * (0.18 + y * 0.09);
-    context.moveTo(width * 0.08, yy);
-    context.bezierCurveTo(width * 0.3, yy - 30, width * 0.58, yy + 45, width * 0.92, yy - 10);
-    context.stroke();
-  }
-
-  return canvas;
 }
