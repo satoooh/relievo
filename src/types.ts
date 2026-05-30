@@ -1,0 +1,73 @@
+export type SourceKind = "demo" | "image" | "video" | "webcam";
+
+export type ScanDirection = "left-right" | "right-left" | "top-bottom" | "bottom-top";
+
+export type DepthBackend = "cpu-heuristic" | "worker-cpu-heuristic";
+
+export interface ReliefParams {
+  gridWidth: number;
+  gridHeight: number;
+  depthScale: number;
+  depthGamma: number;
+  pointSize: number;
+  pointOpacity: number;
+  colorStrength: number;
+  temporalSmoothing: number;
+  backgroundFade: number;
+  foregroundBoost: number;
+  inferenceFPS: number;
+  renderScale: number;
+  adaptiveQuality: boolean;
+  morphAmount: number;
+  morphSpeed: number;
+  scanReveal: number;
+  scanDirection: ScanDirection;
+  trailAmount: number;
+  breathing: number;
+  depthQuantize: number;
+  monochrome: boolean;
+  glitchAmount: number;
+}
+
+export interface ReliefPreset {
+  id: string;
+  name: string;
+  description: string;
+  params: Partial<ReliefParams>;
+}
+
+export interface FrameSample {
+  data: ImageData;
+  width: number;
+  height: number;
+  sourceKind: SourceKind;
+  timestamp: number;
+}
+
+export interface DepthResult {
+  depth: Float32Array;
+  width: number;
+  height: number;
+  backend: DepthBackend;
+  inferenceMs: number;
+}
+
+export interface RuntimeStats {
+  renderFPS: number;
+  inferenceFPS: number;
+  inferenceMs: number;
+  backend: DepthBackend;
+  sourceKind: SourceKind;
+  webgpuAvailable: boolean;
+  recordingSupported: boolean;
+  recording: boolean;
+  quality: string;
+  pipeline: string;
+  message: string;
+}
+
+export interface MediaSourceHandle {
+  kind: SourceKind;
+  element?: HTMLCanvasElement | HTMLImageElement | HTMLVideoElement;
+  stop: () => void;
+}
