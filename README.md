@@ -19,7 +19,7 @@ It runs media sampling, Depth Anything V2 inference, WebGL point rendering, live
 - Separates rendering from frame inference so dragging and orbiting the 3D scene stays responsive while frames are being analyzed.
 - Saves shareable URL hashes for repeatable artwork states when the source is blank or demo media.
 - Provides a performance mode that hides controls for projection, recording, and installation tests.
-- Includes an experimental emoji mosaic mode for testing symbolic micro-texture without replacing the 3D relief plane as the primary material.
+- Includes an experimental emoji mosaic mode that places small symbolic glyphs on the same 3D relief plane as the point field.
 - Provides presets such as Ghost Relief, LiDAR Scan, Topographic, Soft Hologram, Depth Sculpture, and Glitch Field.
 - Captures PNG screenshots and short canvas recordings with Web and Archive quality modes, preferring MP4 when the browser supports it and falling back to WebM.
 

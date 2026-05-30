@@ -13,7 +13,6 @@ import { presets } from "../presets";
 export interface ViewElements {
   shell: HTMLElement;
   canvas: HTMLCanvasElement;
-  emojiCanvas: HTMLCanvasElement;
   inputPreviewCanvas: HTMLCanvasElement;
   chrome: HTMLElement;
   controlsPanel: HTMLElement;
@@ -93,7 +92,6 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
     <main class="relative h-full w-full overflow-hidden bg-[#08090b] text-white">
       <section class="absolute inset-0" aria-label="Relievo viewport">
         <canvas id="relievo-canvas" class="h-full w-full"></canvas>
-        <canvas id="emoji-canvas" class="pointer-events-none absolute inset-0 hidden h-full w-full mix-blend-screen"></canvas>
       </section>
 
       <div id="input-preview-shell" class="pointer-events-none absolute bottom-4 right-4 z-20 hidden w-[260px] overflow-hidden rounded border border-white/16 bg-black/44 shadow-2xl backdrop-blur-md md:block">
@@ -224,7 +222,6 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
   return {
     shell: root.querySelector("main")!,
     canvas: mustGet<HTMLCanvasElement>("relievo-canvas"),
-    emojiCanvas: mustGet<HTMLCanvasElement>("emoji-canvas"),
     inputPreviewCanvas: mustGet<HTMLCanvasElement>("input-preview-canvas"),
     chrome: mustGet<HTMLElement>("chrome"),
     controlsPanel: mustGet<HTMLElement>("controls-panel"),

@@ -23,5 +23,5 @@ The guitar study is useful because it has recognizable macro structure and many 
 
 - Test the same material in performance mode with all controls hidden.
 - Save a URL-hash state for the exact look.
-- Compare point mode with emoji mosaic mode at a fine dot-like scale, so symbolic micro-texture appears only when looking closely and does not weaken the relief surface.
+- Compare point mode with emoji mosaic mode at a fine dot-like scale, with glyphs attached to the same 3D relief plane so symbolic micro-texture appears only when looking closely and does not weaken the surface.
 - Re-record with a cleaner exhibition composition once the default material and source framing are settled.

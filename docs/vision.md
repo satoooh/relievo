@@ -22,8 +22,9 @@ Relievo is moving toward a real-time 3D-space depth relief instrument:
 - a blank point field in 3D space that can become media-driven 2.5D relief without a hard scene change,
 - Depth Anything V2 as the primary creative ML backend,
 - performance mode for projection and exhibition,
+- keyboard and canvas gestures that let the work move between edit surface and exhibition surface without adding visible UI,
 - shareable URL hashes for repeatable artwork states,
 - high-quality canvas recording for documentation,
 - experimental micro/macro materials such as emoji mosaic.
 
-The emoji mosaic direction is deliberately strange, but it should keep the point-field scale and should not replace the 3D scene as the main artwork. From a distance, the viewer should still read a fine relief surface; up close, some points decompose into small symbolic fragments. That shift between macro shape and micro language is a useful path for making Relievo feel like more than a point-field renderer without losing the dense dot texture.
+The emoji mosaic direction is deliberately strange, but it should keep the point-field scale and should not replace the 3D scene as the main artwork. Emoji glyphs belong on the same 2.5D relief plane as the points, so dragging the scene still reveals one spatial surface. From a distance, the viewer should still read a fine relief surface; up close, some points decompose into small symbolic fragments. That shift between macro shape and micro language is a useful path for making Relievo feel like more than a point-field renderer without losing the dense dot texture.

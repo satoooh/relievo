@@ -20,6 +20,11 @@ export class ReliefRenderer {
     blending: THREE.NormalBlending,
   });
   private readonly points = new THREE.Points(this.geometry, this.material);
+  private readonly emojiMeshes = createEmojiMeshes();
+  private readonly emojiMatrix = new THREE.Matrix4();
+  private readonly emojiQuaternion = new THREE.Quaternion();
+  private readonly emojiScale = new THREE.Vector3();
+  private readonly emojiPosition = new THREE.Vector3();
   private positions = new Float32Array();
   private uvs = new Float32Array();
   private depths = new Float32Array();
@@ -28,6 +33,7 @@ export class ReliefRenderer {
   private width = 0;
   private height = 0;
   private animationFrame = 0;
+  private lastEmojiSync = 0;
   private startedAt = performance.now();
 
   constructor(canvas: HTMLCanvasElement) {
@@ -50,6 +56,9 @@ export class ReliefRenderer {
     this.controls.target.set(0, 0, 0);
 
     this.scene.add(this.points);
+    for (const mesh of this.emojiMeshes) {
+      this.scene.add(mesh);
+    }
     this.scene.add(new THREE.AmbientLight(0xffffff, 0.65));
   }
 
@@ -70,12 +79,13 @@ export class ReliefRenderer {
     this.startedAt = performance.now();
   }
 
-  render(params: ReliefParams, stats: RuntimeStats): void {
+  render(params: ReliefParams, stats: RuntimeStats, emojiMode = false): void {
     const now = performance.now();
     this.resize(params.renderScale);
     this.updateUniforms(params, now);
     this.renderer.autoClear = true;
     this.points.rotation.y = 0;
+    this.syncEmojiMeshes(params, now, emojiMode);
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
     stats.renderFPS = stats.renderFPS;
@@ -109,6 +119,12 @@ export class ReliefRenderer {
     this.renderer.dispose();
     this.geometry.dispose();
     this.material.dispose();
+    for (const mesh of this.emojiMeshes) {
+      mesh.geometry.dispose();
+      const material = mesh.material as THREE.Material & { map?: THREE.Texture };
+      material.map?.dispose();
+      material.dispose();
+    }
     this.controls.dispose();
   }
 
@@ -158,6 +174,75 @@ export class ReliefRenderer {
 
     this.geometry.attributes.aDepth!.needsUpdate = true;
     this.geometry.attributes.aColor!.needsUpdate = true;
+    this.lastEmojiSync = 0;
+  }
+
+  private syncEmojiMeshes(params: ReliefParams, now: number, enabled: boolean): void {
+    for (const mesh of this.emojiMeshes) {
+      mesh.visible = enabled;
+    }
+
+    if (!enabled || this.width === 0 || this.height === 0 || now - this.lastEmojiSync < 120) {
+      return;
+    }
+
+    this.lastEmojiSync = now;
+    const counts = new Array(this.emojiMeshes.length).fill(0) as number[];
+    const stride = Math.max(4, Math.floor(this.width / 104));
+    const near = Math.min(params.nearThreshold, params.farThreshold - 0.02);
+    const far = Math.max(params.farThreshold, near + 0.02);
+    const elapsedMs = now - this.startedAt;
+    const introMorph = easeOutCubic(clamp01((elapsedMs * (0.45 + params.morphSpeed)) / 4200));
+    const scan = scanThreshold(params, elapsedMs);
+    const glyphScale = Math.min(0.03, Math.max(0.014, params.pointSize * 0.085));
+
+    this.emojiScale.set(glyphScale, glyphScale, glyphScale);
+
+    for (let y = 0; y < this.height; y += stride) {
+      for (let x = 0; x < this.width; x += stride) {
+        const index = y * this.width + x;
+        const positionIndex = index * 3;
+        const colorIndex = index * 3;
+        const uvIndex = index * 2;
+        const z = reliefDepth(this.depths[index] ?? 0, params);
+        const axis = scanAxis(this.uvs[uvIndex] ?? 0, this.uvs[uvIndex + 1] ?? 0, params.scanDirection);
+        const revealed = axis <= scan ? 1 : 0.08;
+        const depthWindow = smoothstep(near, near + 0.04, z) * (1 - smoothstep(far - 0.04, far, z));
+        if (depthWindow < 0.08 || revealed < 0.5) {
+          continue;
+        }
+
+        const meshIndex = nearestEmojiMesh(
+          this.colors[colorIndex] ?? 0,
+          this.colors[colorIndex + 1] ?? 0,
+          this.colors[colorIndex + 2] ?? 0,
+        );
+        const mesh = this.emojiMeshes[meshIndex]!;
+        const instanceIndex = counts[meshIndex] ?? 0;
+        if (instanceIndex >= mesh.instanceMatrix.count) {
+          continue;
+        }
+
+        const localMorph = smoothstep(0, 1, introMorph * 1.18 - axis * 0.16 + z * 0.08 + (this.seeds[index] ?? 0) * 0.025);
+        const breathing = 1 + Math.sin(elapsedMs * 0.0018) * params.breathing;
+        const settledMotion = 1 + Math.sin(elapsedMs * 0.0012 + (this.seeds[index] ?? 0) * 2.4) * params.breathing * 0.35;
+        const displaced = z * params.depthScale * params.morphAmount * localMorph * breathing * settledMotion * revealed;
+        this.emojiPosition.set(
+          this.positions[positionIndex] ?? 0,
+          this.positions[positionIndex + 1] ?? 0,
+          displaced - params.depthScale * 0.45 + 0.012,
+        );
+        this.emojiMatrix.compose(this.emojiPosition, this.emojiQuaternion, this.emojiScale);
+        mesh.setMatrixAt(instanceIndex, this.emojiMatrix);
+        counts[meshIndex] = instanceIndex + 1;
+      }
+    }
+
+    for (let index = 0; index < this.emojiMeshes.length; index += 1) {
+      const mesh = this.emojiMeshes[index]!;
+      mesh.count = counts[index] ?? 0;
+      mesh.instanceMatrix.needsUpdate = true;
+    }
   }
 
   private updateUniforms(params: ReliefParams, now: number): void {
@@ -229,6 +314,34 @@ function scanDirectionIndex(direction: ReliefParams["scanDirection"]): number {
   }
 }
 
+function scanAxis(x: number, y: number, direction: ReliefParams["scanDirection"]): number {
+  switch (direction) {
+    case "right-left":
+      return 1 - x;
+    case "top-bottom":
+      return y;
+    case "bottom-top":
+      return 1 - y;
+    case "left-right":
+    default:
+      return x;
+  }
+}
+
+function reliefDepth(depth: number, params: ReliefParams): number {
+  let z = Math.pow(clamp01(depth), params.depthGamma);
+  const quantize = Math.max(0, Math.round(params.depthQuantize));
+  if (quantize > 1) {
+    z = Math.floor(z * quantize + 0.5) / quantize;
+  }
+  return z;
+}
+
+function smoothstep(edge0: number, edge1: number, value: number): number {
+  const t = clamp01((value - edge0) / (edge1 - edge0));
+  return t * t * (3 - 2 * t);
+}
+
 function pseudoNoise(x: number, y: number, now: number): number {
   const value = Math.sin(x * 12.9898 + y * 78.233 + Math.floor(now / 120) * 0.31) * 43758.5453;
   return (value - Math.floor(value) - 0.5) * 2;
@@ -240,6 +353,98 @@ function clamp01(value: number): number {
 
 function easeOutCubic(value: number): number {
   return 1 - Math.pow(1 - value, 3);
+}
+
+interface EmojiSwatch {
+  emoji: string;
+  rgb: [number, number, number];
+}
+
+const emojiSwatches: EmojiSwatch[] = [
+  { emoji: "·", rgb: [8, 9, 11] },
+  { emoji: "•", rgb: [24, 26, 32] },
+  { emoji: "✦", rgb: [218, 224, 226] },
+  { emoji: "✧", rgb: [245, 232, 152] },
+  { emoji: "🌑", rgb: [24, 26, 32] },
+  { emoji: "🪨", rgb: [84, 78, 72] },
+  { emoji: "🪵", rgb: [105, 72, 42] },
+  { emoji: "🍂", rgb: [142, 82, 36] },
+  { emoji: "🌿", rgb: [52, 128, 72] },
+  { emoji: "🧊", rgb: [120, 205, 224] },
+  { emoji: "🟦", rgb: [56, 132, 220] },
+  { emoji: "🟪", rgb: [150, 91, 202] },
+  { emoji: "🌸", rgb: [230, 126, 170] },
+  { emoji: "🟨", rgb: [240, 198, 71] },
+  { emoji: "🟧", rgb: [236, 129, 42] },
+  { emoji: "⬜", rgb: [218, 224, 226] },
+];
+
+function createEmojiMeshes(): THREE.InstancedMesh[] {
+  const maxInstances = 7200;
+  return emojiSwatches.map((swatch) => {
+    const geometry = new THREE.PlaneGeometry(1, 1);
+    const texture = createEmojiTexture(swatch.emoji);
+    const material = new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      opacity: swatch.emoji.length === 1 && /[·•✦✧]/.test(swatch.emoji) ? 0.36 : 0.24,
+      depthWrite: false,
+      depthTest: true,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false,
+    });
+    const mesh = new THREE.InstancedMesh(geometry, material, maxInstances);
+    mesh.count = 0;
+    mesh.frustumCulled = false;
+    mesh.visible = false;
+    return mesh;
+  });
+}
+
+function createEmojiTexture(emoji: string): THREE.CanvasTexture {
+  const size = 128;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext("2d");
+  if (context) {
+    context.clearRect(0, 0, size, size);
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.font = emoji.length === 1 && /[·•✦✧]/.test(emoji)
+      ? `700 ${size * 0.72}px ui-sans-serif, system-ui, sans-serif`
+      : `${size * 0.62}px "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
+    context.fillStyle = "#dce7e4";
+    context.fillText(emoji, size * 0.5, size * 0.53);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
+  return texture;
+}
+
+function nearestEmojiMesh(red: number, green: number, blue: number): number {
+  let bestIndex = 0;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  const r = red * 255;
+  const g = green * 255;
+  const b = blue * 255;
+
+  for (let index = 0; index < emojiSwatches.length; index += 1) {
+    const swatch = emojiSwatches[index]!;
+    const dr = r - swatch.rgb[0];
+    const dg = g - swatch.rgb[1];
+    const db = b - swatch.rgb[2];
+    const distance = dr * dr + dg * dg + db * db;
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestIndex = index;
+    }
+  }
+
+  return bestIndex;
 }
 
 function createReliefUniforms() {

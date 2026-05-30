@@ -8,7 +8,6 @@ import { FrameSampler } from "./media/frameSampler";
 import { initialDemoSceneId } from "./media/demoScenes";
 import { createBlankSource, createDemoSource, createImageSource, createVideoSource, createWebcamSource } from "./media/mediaSources";
 import { findPreset, initialPresetId } from "./presets";
-import { EmojiMosaic } from "./renderer/EmojiMosaic";
 import { ReliefRenderer } from "./renderer/ReliefRenderer";
 import { decodeShareableState, encodeShareableState } from "./share/stateHash";
 import { createAdvancedGui } from "./ui/lilGui";
@@ -30,7 +29,6 @@ const params: ReliefParams = {
 };
 const elements = createView(root, params);
 const renderer = new ReliefRenderer(elements.canvas);
-const emojiMosaic = new EmojiMosaic(elements.emojiCanvas);
 const sampler = new FrameSampler();
 const smoother = new TemporalSmoother();
 const depthPipeline = new DepthPipeline();
@@ -151,6 +149,12 @@ function bindEvents(): void {
     sync();
   });
 
+  elements.canvas.addEventListener("dblclick", () => {
+    performanceMode = !performanceMode;
+    sync();
+    updateShareStateSoon();
+  });
+
   elements.presetSelect.addEventListener("change", () => {
     applyPreset(elements.presetSelect.value);
     updateShareStateSoon();
@@ -233,8 +237,7 @@ function animationLoop(now: number): void {
   stats.renderFPS = renderMeter.tick(now);
   stats.recording = recorder.recording;
   renderInputPreview();
-  renderer.render(params, stats);
-  emojiMosaic.render(emojiMode);
+  renderer.render(params, stats, emojiMode);
 
   if (now - lastStatsSync > 160) {
     sync();
@@ -328,7 +331,6 @@ async function runInference(force: boolean, generation: number): Promise<boolean
   if (source.kind === "blank") {
     const depth = createBlankDepth(sample, performance.now());
     renderer.setFrame(sample, depth, params);
-    emojiMosaic.setFrame(sample, depth);
     stats.backend = "cpu-heuristic";
     stats.inferenceMs = 0;
     stats.inferenceFPS = inferenceMeter.tick();
@@ -373,7 +375,6 @@ async function runInference(force: boolean, generation: number): Promise<boolean
 
   const smoothed = smoother.smooth(result.depth, params.temporalSmoothing);
   renderer.setFrame(sample, smoothed, params);
-  emojiMosaic.setFrame(sample, smoothed);
 
   stats.backend = result.backend;
   stats.inferenceMs = result.inferenceMs;
