@@ -34,6 +34,7 @@ export class ReliefRenderer {
   private height = 0;
   private animationFrame = 0;
   private lastEmojiSync = 0;
+  private sourceKind: FrameSample["sourceKind"] = "blank";
   private startedAt = performance.now();
 
   constructor(canvas: HTMLCanvasElement) {
@@ -71,6 +72,7 @@ export class ReliefRenderer {
       this.rebuildGeometry(sample.width, sample.height);
     }
 
+    this.sourceKind = sample.sourceKind;
     this.updateFrameAttributes(sample, depth);
     this.updateUniforms(params, performance.now());
   }
@@ -194,7 +196,7 @@ export class ReliefRenderer {
     const elapsedMs = now - this.startedAt;
     const introMorph = easeOutCubic(clamp01((elapsedMs * (0.45 + params.morphSpeed)) / 4200));
     const scan = scanThreshold(params, elapsedMs);
-    const glyphScale = Math.min(0.03, Math.max(0.014, params.pointSize * 0.085));
+    const glyphScale = Math.min(0.03, Math.max(0.013, params.pointSize * 0.074));
 
     this.emojiScale.set(glyphScale, glyphScale, glyphScale);
 
@@ -250,6 +252,7 @@ export class ReliefRenderer {
     const near = Math.min(params.nearThreshold, params.farThreshold - 0.02);
     const far = Math.max(params.farThreshold, near + 0.02);
     this.uniforms.uBackgroundFade.value = params.backgroundFade;
+    this.uniforms.uBlankSource.value = this.sourceKind === "blank" ? 1 : 0;
     this.uniforms.uBrightness.value = params.brightness;
     this.uniforms.uBreathing.value = params.breathing;
     this.uniforms.uColorStrength.value = params.colorStrength;
@@ -450,6 +453,7 @@ function nearestEmojiMesh(red: number, green: number, blue: number): number {
 function createReliefUniforms() {
   return {
     uBackgroundFade: { value: 0.72 },
+    uBlankSource: { value: 0 },
     uBrightness: { value: 0.72 },
     uBreathing: { value: 0.01 },
     uColorStrength: { value: 1 },
@@ -482,6 +486,7 @@ const vertexShader = `
   attribute float aSeed;
 
   uniform float uBackgroundFade;
+  uniform float uBlankSource;
   uniform float uBrightness;
   uniform float uBreathing;
   uniform float uColorStrength;
@@ -559,14 +564,15 @@ const vertexShader = `
     float depthShade = pow(z, 0.72);
     float texture = mix(mono, mono, uMonochrome);
     float reliefTone = mix(depthShade, texture, uTextureMix);
-    float pointLight = reliefTone * fade * depthWindow * scanTint * uBrightness * (0.38 + localMorph * 0.62);
+    float blankBoost = mix(1.0, 1.42, uBlankSource);
+    float pointLight = reliefTone * fade * depthWindow * scanTint * uBrightness * blankBoost * (0.38 + localMorph * 0.62);
     vec3 litColor = colorChannel(aColor * pointLight, uColorStrength);
     vec3 monoColor = vec3(pointLight * 0.78, pointLight * 0.82, pointLight * 0.9);
     vColor = mix(litColor, monoColor, step(0.5, uMonochrome));
     vAlpha = clamp(depthWindow * uPointOpacity * (0.18 + localMorph * 0.82), 0.0, 1.0);
 
     vec4 mvPosition = modelViewMatrix * vec4(transformed, 1.0);
-    gl_PointSize = max(1.0, uPointSize * uViewportHeight * uPixelRatio * 0.078 / max(0.1, -mvPosition.z));
+    gl_PointSize = max(1.15, uPointSize * uViewportHeight * uPixelRatio * 0.108 / max(0.1, -mvPosition.z));
     gl_Position = projectionMatrix * mvPosition;
   }
 `;

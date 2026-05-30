@@ -327,15 +327,19 @@ async function runInference(force: boolean, generation: number): Promise<boolean
 
   adaptQuality();
 
-  const sample = sampler.sample(element, params.gridWidth, params.gridHeight, source.kind);
+  const sample =
+    source.kind === "blank"
+      ? sampler.sample(element, blankGridSize(), blankGridSize(), source.kind)
+      : sampler.sample(element, params.gridWidth, params.gridHeight, source.kind);
   if (source.kind === "blank") {
+    prepareBlankPointSample(sample);
     const depth = createBlankDepth(sample, performance.now());
     renderer.setFrame(sample, depth, params);
     stats.backend = "cpu-heuristic";
     stats.inferenceMs = 0;
     stats.inferenceFPS = inferenceMeter.tick();
     stats.sourceKind = source.kind;
-    stats.quality = qualityLabel(params);
+    stats.quality = `${sample.width}x${sample.height} / ${Math.round(params.renderScale * 100)}%`;
     stats.pipeline = "procedural blank point field";
     return true;
   }
@@ -465,21 +469,15 @@ function preloadDepthBackend(): void {
 
     const backend = params.depthBackend;
     const sample = sampler.sample(element, 192, 192, source.kind);
-    setLoading(true, `${depthBackendLabel(backend)} is preparing local browser inference.`);
     void depthPipeline
       .estimate(sample, backend)
-      .then((result) => {
-        stats.backend = result.backend;
-        stats.pipeline = pipelineLabel(result.backend);
-        stats.inferenceMs = result.inferenceMs;
+      .then(() => {
+        preloadedDepthBackend = backend;
       })
       .catch((error) => {
         preloadedDepthBackend = "";
         const detail = error instanceof Error ? error.message : String(error);
         setMessage(`${depthBackendLabel(backend)} preload failed. ${detail}`);
-      })
-      .finally(() => {
-        setLoading(false);
       });
   }, 450);
 }
@@ -524,6 +522,30 @@ function createBlankDepth(sample: FrameSample, now: number): Float32Array {
   }
 
   return depth;
+}
+
+function blankGridSize(): number {
+  return Math.min(320, Math.max(240, params.gridWidth));
+}
+
+function prepareBlankPointSample(sample: FrameSample): void {
+  const data = sample.data.data;
+  const centerX = (sample.width - 1) * 0.5;
+  const centerY = (sample.height - 1) * 0.5;
+  const maxDistance = Math.hypot(centerX, centerY) || 1;
+
+  for (let y = 0; y < sample.height; y += 1) {
+    for (let x = 0; x < sample.width; x += 1) {
+      const index = (y * sample.width + x) * 4;
+      const distance = Math.hypot(x - centerX, y - centerY) / maxDistance;
+      const wave = Math.sin(x * 0.08 + sample.timestamp * 0.001) * Math.cos(y * 0.07 + sample.timestamp * 0.0008);
+      const tone = Math.round(205 + (1 - distance) * 42 + wave * 8);
+      data[index] = tone;
+      data[index + 1] = tone;
+      data[index + 2] = Math.min(255, tone + 4);
+      data[index + 3] = 255;
+    }
+  }
 }
 
 function renderInputPreview(): void {

@@ -56,7 +56,7 @@ export const presets: ReliefPreset[] = [
       gridHeight: 236,
       depthScale: 3.3,
       depthGamma: 1.42,
-      pointSize: 0.22,
+      pointSize: 0.28,
       pointOpacity: 0.64,
       colorStrength: 1,
       backgroundFade: 0.72,
