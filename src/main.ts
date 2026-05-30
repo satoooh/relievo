@@ -36,10 +36,14 @@ const recorder = new CanvasRecorder();
 const renderMeter = new RateMeter();
 const inferenceMeter = new RateMeter();
 const gui = createAdvancedGui(params, () => sync());
+const minimumVisualFPS = 24;
+const targetVisualFPS = 30;
+const idealVisualFPS = 58;
 
 let currentDemoSceneId = initialShareState.demoSceneId ?? initialDemoSceneId;
 let source: MediaSourceHandle = initialShareState.sourceKind === "demo" ? createDemoSource(currentDemoSceneId) : createBlankSource();
 let lastStatsSync = 0;
+let lastQualityAdaptAt = 0;
 let currentPresetId = initialShareState.presetId ?? initialPresetId;
 let performanceMode = initialShareState.performanceMode ?? false;
 let emojiMode = initialShareState.emojiMode ?? false;
@@ -236,6 +240,7 @@ function applyPreset(id: string): void {
 function animationLoop(now: number): void {
   stats.renderFPS = renderMeter.tick(now);
   stats.recording = recorder.recording;
+  adaptRenderQuality(now);
   renderInputPreview();
   renderer.render(params, stats, emojiMode);
 
@@ -330,7 +335,7 @@ async function runInference(force: boolean, generation: number): Promise<boolean
   const sample =
     source.kind === "blank"
       ? sampler.sample(element, blankGridSize(), blankGridSize(), source.kind)
-      : sampler.sample(element, params.gridWidth, params.gridHeight, source.kind);
+      : sampler.sample(element, dynamicSampleSize(), dynamicSampleSize(), source.kind);
   if (source.kind === "blank") {
     prepareBlankPointSample(sample);
     const depth = createBlankDepth(sample, performance.now());
@@ -394,16 +399,46 @@ function adaptQuality(): void {
     return;
   }
 
-  if (stats.renderFPS > 0 && stats.renderFPS < 34 && params.gridWidth > 160) {
-    params.gridWidth = 192;
-    params.gridHeight = 108;
-    params.renderScale = Math.min(params.renderScale, 0.85);
+  if (stats.renderFPS > 0 && stats.renderFPS < minimumVisualFPS && params.gridWidth > 160) {
+    params.gridWidth = 176;
+    params.gridHeight = 176;
+    params.renderScale = Math.min(params.renderScale, 0.72);
+    params.inferenceFPS = Math.min(params.inferenceFPS, 8);
     smoother.reset();
-  } else if (stats.renderFPS > 52 && params.gridWidth < defaultParams.gridWidth) {
+  } else if (stats.renderFPS > idealVisualFPS && params.gridWidth < defaultParams.gridWidth) {
     params.gridWidth = defaultParams.gridWidth;
     params.gridHeight = defaultParams.gridHeight;
     params.renderScale = Math.max(params.renderScale, 1);
     smoother.reset();
+  }
+}
+
+function adaptRenderQuality(now: number): void {
+  if (!params.adaptiveQuality || stats.renderFPS <= 0 || now - lastQualityAdaptAt < 700) {
+    return;
+  }
+
+  lastQualityAdaptAt = now;
+  if (stats.renderFPS < minimumVisualFPS) {
+    params.renderScale = Math.max(0.58, Number((params.renderScale - 0.12).toFixed(2)));
+    params.gridWidth = Math.max(144, Math.round(params.gridWidth * 0.72));
+    params.gridHeight = params.gridWidth;
+    params.inferenceFPS = Math.max(3, Math.min(params.inferenceFPS, source.kind === "blank" ? 18 : 6));
+    smoother.reset();
+    return;
+  }
+
+  if (stats.renderFPS < targetVisualFPS) {
+    params.renderScale = Math.max(0.68, Number((params.renderScale - 0.06).toFixed(2)));
+    params.gridWidth = Math.max(176, Math.round(params.gridWidth * 0.84));
+    params.gridHeight = params.gridWidth;
+    params.inferenceFPS = Math.max(4, Math.min(params.inferenceFPS, source.kind === "blank" ? 20 : 8));
+    smoother.reset();
+    return;
+  }
+
+  if (stats.renderFPS > idealVisualFPS && params.renderScale < defaultParams.renderScale && source.kind === "blank") {
+    params.renderScale = Math.min(defaultParams.renderScale, Number((params.renderScale + 0.04).toFixed(2)));
   }
 }
 
@@ -444,8 +479,12 @@ function pipelineLabel(backend: RuntimeStats["backend"]): string {
 
 function inferenceIntervalMs(): number {
   const requested = 1000 / Math.max(1, params.inferenceFPS);
+  if (source.kind === "blank") {
+    return requested;
+  }
+
   if (isHighCostDepthBackend(params.depthBackend)) {
-    return Math.max(requested, 220);
+    return Math.max(requested, 320);
   }
 
   return requested;
@@ -531,6 +570,11 @@ function createBlankDepth(sample: FrameSample, now: number): Float32Array {
 
 function blankGridSize(): number {
   return Math.min(220, Math.max(160, Math.round(params.gridWidth * 0.42)));
+}
+
+function dynamicSampleSize(): number {
+  const sourceLimit = source.kind === "webcam" || source.kind === "video" ? 320 : 384;
+  return Math.min(sourceLimit, Math.max(160, params.gridWidth));
 }
 
 function prepareBlankPointSample(sample: FrameSample): void {

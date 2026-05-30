@@ -13,7 +13,18 @@ export class FrameSampler {
     this.canvas.width = width;
     this.canvas.height = height;
     this.context.clearRect(0, 0, width, height);
-    this.context.drawImage(element, 0, 0, width, height);
+    const sourceRect = coverSourceRect(element);
+    this.context.drawImage(
+      element,
+      sourceRect.x,
+      sourceRect.y,
+      sourceRect.width,
+      sourceRect.height,
+      0,
+      0,
+      width,
+      height,
+    );
 
     return {
       data: this.context.getImageData(0, 0, width, height),
@@ -23,6 +34,48 @@ export class FrameSampler {
       timestamp: performance.now(),
     };
   }
+}
+
+function coverSourceRect(element: CanvasImageSource): { x: number; y: number; width: number; height: number } {
+  const dimensions = sourceDimensions(element);
+  if (!dimensions) {
+    return { x: 0, y: 0, width: 1, height: 1 };
+  }
+
+  const size = Math.min(dimensions.width, dimensions.height);
+  return {
+    x: (dimensions.width - size) * 0.5,
+    y: (dimensions.height - size) * 0.5,
+    width: size,
+    height: size,
+  };
+}
+
+function sourceDimensions(element: CanvasImageSource): { width: number; height: number } | undefined {
+  if (element instanceof HTMLVideoElement) {
+    const width = element.videoWidth || element.clientWidth;
+    const height = element.videoHeight || element.clientHeight;
+    return width > 0 && height > 0 ? { width, height } : undefined;
+  }
+
+  if (element instanceof HTMLImageElement) {
+    const width = element.naturalWidth || element.width;
+    const height = element.naturalHeight || element.height;
+    return width > 0 && height > 0 ? { width, height } : undefined;
+  }
+
+  if (
+    element instanceof HTMLCanvasElement ||
+    (typeof OffscreenCanvas !== "undefined" && element instanceof OffscreenCanvas)
+  ) {
+    return element.width > 0 && element.height > 0 ? { width: element.width, height: element.height } : undefined;
+  }
+
+  if (typeof ImageBitmap !== "undefined" && element instanceof ImageBitmap) {
+    return { width: element.width, height: element.height };
+  }
+
+  return undefined;
 }
 
 interface DemoCanvasHandle {

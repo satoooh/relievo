@@ -27,13 +27,19 @@ export class ReliefRenderer {
   private readonly emojiPosition = new THREE.Vector3();
   private positions = new Float32Array();
   private uvs = new Float32Array();
+  private previousDepths = new Float32Array();
   private depths = new Float32Array();
+  private previousColors = new Float32Array();
   private colors = new Float32Array();
   private seeds = new Float32Array();
   private width = 0;
   private height = 0;
   private animationFrame = 0;
   private lastEmojiSync = 0;
+  private frameStartedAt = performance.now();
+  private lastFrameAt = performance.now();
+  private frameBlendMs = 180;
+  private hasFrame = false;
   private sourceKind: FrameSample["sourceKind"] = "blank";
   private startedAt = performance.now();
 
@@ -134,7 +140,9 @@ export class ReliefRenderer {
     const count = width * height;
     this.positions = new Float32Array(count * 3);
     this.uvs = new Float32Array(count * 2);
+    this.previousDepths = new Float32Array(count);
     this.depths = new Float32Array(count);
+    this.previousColors = new Float32Array(count * 3);
     this.colors = new Float32Array(count * 3);
     this.seeds = new Float32Array(count);
     const aspect = this.width / this.height;
@@ -157,13 +165,29 @@ export class ReliefRenderer {
 
     this.geometry.setAttribute("position", new THREE.BufferAttribute(this.positions, 3));
     this.geometry.setAttribute("aUv", new THREE.BufferAttribute(this.uvs, 2));
+    this.geometry.setAttribute("aPreviousDepth", new THREE.BufferAttribute(this.previousDepths, 1));
     this.geometry.setAttribute("aDepth", new THREE.BufferAttribute(this.depths, 1));
+    this.geometry.setAttribute("aPreviousColor", new THREE.BufferAttribute(this.previousColors, 3));
     this.geometry.setAttribute("aColor", new THREE.BufferAttribute(this.colors, 3));
     this.geometry.setAttribute("aSeed", new THREE.BufferAttribute(this.seeds, 1));
     this.geometry.computeBoundingSphere();
+    this.hasFrame = false;
   }
 
   private updateFrameAttributes(sample: FrameSample, depth: Float32Array): void {
+    const now = performance.now();
+    const previousFrameInterval = now - this.lastFrameAt;
+    this.frameBlendMs = sample.sourceKind === "blank"
+      ? Math.min(260, Math.max(140, previousFrameInterval * 1.18))
+      : Math.min(420, Math.max(170, previousFrameInterval * 1.24));
+    this.frameStartedAt = now;
+    this.lastFrameAt = now;
+
+    if (this.hasFrame) {
+      this.previousDepths.set(this.depths);
+      this.previousColors.set(this.colors);
+    }
+
     const image = sample.data.data;
     for (let index = 0; index < depth.length; index += 1) {
       const pixelIndex = index * 4;
@@ -174,7 +198,15 @@ export class ReliefRenderer {
       this.colors[colorIndex + 2] = (image[pixelIndex + 2] ?? 0) / 255;
     }
 
+    if (!this.hasFrame) {
+      this.previousDepths.set(this.depths);
+      this.previousColors.set(this.colors);
+      this.hasFrame = true;
+    }
+
+    this.geometry.attributes.aPreviousDepth!.needsUpdate = true;
     this.geometry.attributes.aDepth!.needsUpdate = true;
+    this.geometry.attributes.aPreviousColor!.needsUpdate = true;
     this.geometry.attributes.aColor!.needsUpdate = true;
     this.lastEmojiSync = 0;
   }
@@ -261,6 +293,7 @@ export class ReliefRenderer {
     this.uniforms.uDepthScale.value = params.depthScale;
     this.uniforms.uElapsed.value = elapsedMs;
     this.uniforms.uFarThreshold.value = far;
+    this.uniforms.uFrameBlend.value = easeInOutCubic(clamp01((now - this.frameStartedAt) / this.frameBlendMs));
     this.uniforms.uForegroundBoost.value = params.foregroundBoost;
     this.uniforms.uGlitchAmount.value = params.glitchAmount;
     this.uniforms.uIntroMorph.value = easeOutCubic(clamp01((elapsedMs * (0.45 + params.morphSpeed)) / 4200));
@@ -356,6 +389,10 @@ function clamp01(value: number): number {
 
 function easeOutCubic(value: number): number {
   return 1 - Math.pow(1 - value, 3);
+}
+
+function easeInOutCubic(value: number): number {
+  return value < 0.5 ? 4 * value * value * value : 1 - Math.pow(-2 * value + 2, 3) / 2;
 }
 
 interface EmojiSwatch {
@@ -462,6 +499,7 @@ function createReliefUniforms() {
     uDepthScale: { value: 3.3 },
     uElapsed: { value: 0 },
     uFarThreshold: { value: 1 },
+    uFrameBlend: { value: 1 },
     uForegroundBoost: { value: 0.72 },
     uGlitchAmount: { value: 0.01 },
     uIntroMorph: { value: 0 },
@@ -481,7 +519,9 @@ function createReliefUniforms() {
 
 const vertexShader = `
   attribute vec2 aUv;
+  attribute float aPreviousDepth;
   attribute float aDepth;
+  attribute vec3 aPreviousColor;
   attribute vec3 aColor;
   attribute float aSeed;
 
@@ -495,6 +535,7 @@ const vertexShader = `
   uniform float uDepthScale;
   uniform float uElapsed;
   uniform float uFarThreshold;
+  uniform float uFrameBlend;
   uniform float uForegroundBoost;
   uniform float uGlitchAmount;
   uniform float uIntroMorph;
@@ -539,7 +580,9 @@ const vertexShader = `
     float axis = scanAxis(aUv);
     float revealed = axis <= uScan ? 1.0 : 0.08;
     float animatedNoise = random(aUv * 2048.0 + floor(uElapsed / 120.0) * 0.31) * (1.0 - uBlankSource);
-    float z = pow(clamp(aDepth, 0.0, 1.0), uDepthGamma);
+    float sourceDepth = mix(aPreviousDepth, aDepth, uFrameBlend);
+    vec3 sourceColor = mix(aPreviousColor, aColor, uFrameBlend);
+    float z = pow(clamp(sourceDepth, 0.0, 1.0), uDepthGamma);
 
     if (uDepthQuantize > 1.0) {
       z = floor(z * uDepthQuantize + 0.5) / uDepthQuantize;
@@ -559,7 +602,7 @@ const vertexShader = `
     vec3 transformed = position;
     transformed.z = displaced - uDepthScale * 0.45;
 
-    float mono = dot(aColor, vec3(0.333333));
+    float mono = dot(sourceColor, vec3(0.333333));
     float fade = uBackgroundFade + foreground * (1.0 - uBackgroundFade);
     float scanTint = revealed < 1.0 ? 0.24 : 1.0;
     float depthShade = pow(z, 0.72);
@@ -567,7 +610,7 @@ const vertexShader = `
     float reliefTone = mix(depthShade, texture, uTextureMix);
     float blankBoost = mix(1.0, 1.42, uBlankSource);
     float pointLight = reliefTone * fade * depthWindow * scanTint * uBrightness * blankBoost * (0.38 + localMorph * 0.62);
-    vec3 litColor = colorChannel(aColor * pointLight, uColorStrength);
+    vec3 litColor = colorChannel(sourceColor * pointLight, uColorStrength);
     vec3 monoColor = vec3(pointLight * 0.78, pointLight * 0.82, pointLight * 0.9);
     vColor = mix(litColor, monoColor, step(0.5, uMonochrome));
     vAlpha = clamp(depthWindow * uPointOpacity * (0.18 + localMorph * 0.82), 0.0, 1.0);
