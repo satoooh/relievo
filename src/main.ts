@@ -512,12 +512,17 @@ function createBlankDepth(sample: FrameSample, now: number): Float32Array {
   const centerX = (sample.width - 1) * 0.5;
   const centerY = (sample.height - 1) * 0.5;
   const maxDistance = Math.hypot(centerX, centerY) || 1;
+  const time = now * 0.00042;
 
   for (let y = 0; y < sample.height; y += 1) {
+    const yn = sample.height <= 1 ? 0 : y / (sample.height - 1);
     for (let x = 0; x < sample.width; x += 1) {
+      const xn = sample.width <= 1 ? 0 : x / (sample.width - 1);
       const distance = Math.hypot(x - centerX, y - centerY) / maxDistance;
-      const wave = Math.sin(x * 0.065 + now * 0.0012) * Math.cos(y * 0.052 + now * 0.0009);
-      depth[y * sample.width + x] = Math.max(0, Math.min(1, 0.46 + wave * 0.035 - distance * 0.06));
+      const wave = Math.sin((xn * 2.2 + time) * Math.PI * 2) * 0.5 +
+        Math.cos((yn * 1.8 - time * 0.82) * Math.PI * 2) * 0.32 +
+        Math.sin(((xn + yn) * 1.35 + time * 0.54) * Math.PI * 2) * 0.18;
+      depth[y * sample.width + x] = Math.max(0, Math.min(1, 0.5 + wave * 0.045 - distance * 0.04));
     }
   }
 
@@ -525,7 +530,7 @@ function createBlankDepth(sample: FrameSample, now: number): Float32Array {
 }
 
 function blankGridSize(): number {
-  return Math.min(320, Math.max(240, params.gridWidth));
+  return Math.min(220, Math.max(160, Math.round(params.gridWidth * 0.42)));
 }
 
 function prepareBlankPointSample(sample: FrameSample): void {
@@ -538,8 +543,7 @@ function prepareBlankPointSample(sample: FrameSample): void {
     for (let x = 0; x < sample.width; x += 1) {
       const index = (y * sample.width + x) * 4;
       const distance = Math.hypot(x - centerX, y - centerY) / maxDistance;
-      const wave = Math.sin(x * 0.08 + sample.timestamp * 0.001) * Math.cos(y * 0.07 + sample.timestamp * 0.0008);
-      const tone = Math.round(205 + (1 - distance) * 42 + wave * 8);
+      const tone = Math.round(218 + (1 - distance) * 30);
       data[index] = tone;
       data[index + 1] = tone;
       data[index + 2] = Math.min(255, tone + 4);

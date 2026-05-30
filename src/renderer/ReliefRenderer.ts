@@ -538,7 +538,7 @@ const vertexShader = `
   void main() {
     float axis = scanAxis(aUv);
     float revealed = axis <= uScan ? 1.0 : 0.08;
-    float animatedNoise = random(aUv * 2048.0 + floor(uElapsed / 120.0) * 0.31);
+    float animatedNoise = random(aUv * 2048.0 + floor(uElapsed / 120.0) * 0.31) * (1.0 - uBlankSource);
     float z = pow(clamp(aDepth, 0.0, 1.0), uDepthGamma);
 
     if (uDepthQuantize > 1.0) {
@@ -548,10 +548,11 @@ const vertexShader = `
     float depthWindow = smoothstep(uNearThreshold, uNearThreshold + 0.04, z) *
       (1.0 - smoothstep(uFarThreshold - 0.04, uFarThreshold, z));
     float foreground = clamp(z + uForegroundBoost * z, 0.0, 1.0);
-    float trailWave = sin(uElapsed * 0.003 + aUv.x * 68.0 + aUv.y * 37.0) * uTrailAmount;
-    float localMorph = smoothstep(0.0, 1.0, uIntroMorph * 1.18 - axis * 0.16 + z * 0.08 + aSeed * 0.025);
+    float trailWave = sin(uElapsed * 0.003 + aUv.x * 68.0 + aUv.y * 37.0) * uTrailAmount * (1.0 - uBlankSource);
+    float seedInfluence = mix(0.025, 0.004, uBlankSource);
+    float localMorph = smoothstep(0.0, 1.0, uIntroMorph * 1.18 - axis * 0.16 + z * 0.08 + aSeed * seedInfluence);
     float breathing = 1.0 + sin(uElapsed * 0.0018) * uBreathing;
-    float settledMotion = 1.0 + sin(uElapsed * 0.0012 + aSeed * 2.4) * uBreathing * 0.35;
+    float settledMotion = 1.0 + sin(uElapsed * 0.0012 + aSeed * 2.4 * (1.0 - uBlankSource)) * uBreathing * mix(0.35, 0.16, uBlankSource);
     float glitch = animatedNoise * uGlitchAmount;
     float displaced = (z + glitch + trailWave) * uDepthScale * uMorphAmount * localMorph * breathing * settledMotion * revealed;
 
