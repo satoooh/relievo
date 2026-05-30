@@ -17,7 +17,7 @@ It runs media sampling, Depth Anything V2 inference, WebGL point rendering, live
 - Estimates a depth-like relief map in a Web Worker with selectable heuristic and Depth Anything V2 backends.
 - Renders a dense point-field relief by default, with adaptive quality for weaker machines.
 - Separates rendering from frame inference so dragging and orbiting the 3D scene stays responsive while frames are being analyzed.
-- Switches between the canonical relief field, memory trails, and a Depthkit-inspired volumetric veil without changing the source media.
+- Switches between the canonical relief field and memory trails without changing the source media.
 - Saves shareable URL hashes for repeatable artwork states when the source is blank or demo media.
 - Provides a performance mode that hides controls for projection, recording, and installation tests.
 - Includes an experimental emoji mosaic mode that places small symbolic glyphs on the same 3D relief plane as the point field.

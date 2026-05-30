@@ -24,9 +24,9 @@ Relievo should stay a 2.5D relief plane in navigable 3D space. The stronger dire
 
    Every point has a seed phase, but similar depth bands can synchronize into soft waves. This can make still images feel alive without becoming generic noise.
 
-4. Volumetric veil
+4. Edge-lit relief
 
-   Depthkit-like partial video suggests a translucent point veil: source color remains visible, but foreground depth lifts into a white dotted surface. This is useful when the work should feel more like spatial video than a pure relief surface.
+   Depthkit-like partial video suggests bright dotted structure around silhouettes, clothing folds, hands, and high-frequency source detail. In Relievo this belongs inside the canonical relief field as an edge-lit particle surface, not as a separate mode.
 
 5. Semantic pressure fields
 
@@ -44,8 +44,9 @@ The current study switcher is intentionally narrow:
 
 - Relief field: the canonical readable surface.
 - Memory trails: recent local motion and depth changes leave a brighter, drifting particle afterimage.
-- Volumetric veil: a Depthkit-inspired translucent dot surface over the source, biased toward bright white foreground structure.
 
 These are shader and buffer-level studies, not separate presets. They keep the same media source and the same 2.5D plane so each mode can be judged as a material treatment rather than a new scene.
+
+The relief field now includes a depth/color edge buffer that brightens and slightly enlarges particles around silhouettes and local folds. This is the current path toward the Depthkit partial-video texture: keep the main mode readable, but let high-frequency geometry become a white dotted surface.
 
 MediaPipe should be introduced only if memory trails or the interaction field benefit from semantic control. The likely first use is a hand or face force field: detected landmarks would become local attractors, cuts, or pressure points over the depth surface. That keeps the artwork in the Relievo material language while making webcam interaction more performative.

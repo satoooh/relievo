@@ -33,6 +33,7 @@ export class ReliefRenderer {
   private previousColors = new Float32Array();
   private colors = new Float32Array();
   private motionEnergy = new Float32Array();
+  private edgeStrengths = new Float32Array();
   private seeds = new Float32Array();
   private width = 0;
   private height = 0;
@@ -159,6 +160,7 @@ export class ReliefRenderer {
     this.previousColors = new Float32Array(count * 3);
     this.colors = new Float32Array(count * 3);
     this.motionEnergy = new Float32Array(count);
+    this.edgeStrengths = new Float32Array(count);
     this.seeds = new Float32Array(count);
     const aspect = this.width / this.height;
     const maxPlaneSize = 4.2;
@@ -188,6 +190,7 @@ export class ReliefRenderer {
     this.geometry.setAttribute("aPreviousColor", new THREE.BufferAttribute(this.previousColors, 3));
     this.geometry.setAttribute("aColor", new THREE.BufferAttribute(this.colors, 3));
     this.geometry.setAttribute("aMotion", new THREE.BufferAttribute(this.motionEnergy, 1));
+    this.geometry.setAttribute("aEdge", new THREE.BufferAttribute(this.edgeStrengths, 1));
     this.geometry.setAttribute("aSeed", new THREE.BufferAttribute(this.seeds, 1));
     this.geometry.computeBoundingSphere();
     if (this.isSourceTransitionActive(performance.now())) {
@@ -234,6 +237,7 @@ export class ReliefRenderer {
       this.colors[colorIndex + 1] = nextGreen;
       this.colors[colorIndex + 2] = nextBlue;
     }
+    this.updateEdgeStrengths();
 
     if (!this.hasFrame) {
       this.previousDepths.set(this.depths);
@@ -246,8 +250,42 @@ export class ReliefRenderer {
     this.geometry.attributes.aPreviousColor!.needsUpdate = true;
     this.geometry.attributes.aColor!.needsUpdate = true;
     this.geometry.attributes.aMotion!.needsUpdate = true;
+    this.geometry.attributes.aEdge!.needsUpdate = true;
     this.lastEmojiSync = 0;
     this.preserveTransitionPreviousFrame = false;
+  }
+
+  private updateEdgeStrengths(): void {
+    if (this.width <= 1 || this.height <= 1) {
+      this.edgeStrengths.fill(0);
+      return;
+    }
+
+    for (let y = 0; y < this.height; y += 1) {
+      for (let x = 0; x < this.width; x += 1) {
+        const index = y * this.width + x;
+        const left = y * this.width + Math.max(0, x - 1);
+        const right = y * this.width + Math.min(this.width - 1, x + 1);
+        const up = Math.max(0, y - 1) * this.width + x;
+        const down = Math.min(this.height - 1, y + 1) * this.width + x;
+        const depthGradient =
+          Math.abs((this.depths[right] ?? 0) - (this.depths[left] ?? 0)) +
+          Math.abs((this.depths[down] ?? 0) - (this.depths[up] ?? 0));
+        const luminanceGradient =
+          Math.abs(this.luminanceAt(right) - this.luminanceAt(left)) +
+          Math.abs(this.luminanceAt(down) - this.luminanceAt(up));
+        this.edgeStrengths[index] = clamp01(depthGradient * 3.2 + luminanceGradient * 0.55);
+      }
+    }
+  }
+
+  private luminanceAt(index: number): number {
+    const colorIndex = index * 3;
+    return (
+      (this.colors[colorIndex] ?? 0) * 0.2126 +
+      (this.colors[colorIndex + 1] ?? 0) * 0.7152 +
+      (this.colors[colorIndex + 2] ?? 0) * 0.0722
+    );
   }
 
   private seedTransitionPreviousFrame(): void {
@@ -451,8 +489,6 @@ function artModeIndex(mode: ReliefParams["artMode"]): number {
   switch (mode) {
     case "memory":
       return 1;
-    case "veil":
-      return 2;
     case "relief":
     default:
       return 0;
@@ -639,6 +675,7 @@ const vertexShader = `
   attribute vec3 aPreviousColor;
   attribute vec3 aColor;
   attribute float aMotion;
+  attribute float aEdge;
   attribute float aSeed;
 
   uniform float uArtMode;
@@ -729,14 +766,13 @@ const vertexShader = `
     float interactionRipple = sin(interactionDistance * 52.0 - uElapsed * 0.018) * 0.045 * interactionField;
     float interactionLift = (interactionField * 0.055 + interactionRipple) * (0.62 + z * 0.72);
     float memoryMode = 1.0 - step(0.5, abs(uArtMode - 1.0));
-    float veilMode = 1.0 - step(0.5, abs(uArtMode - 2.0));
     float motionGlow = smoothstep(0.025, 0.64, aMotion) * memoryMode;
     float memoryRail = pow(motionGlow, 0.72);
     float memoryShimmer = (0.5 + 0.5 * sin(uElapsed * 0.009 + aSeed * 9.0 + z * 12.0)) * memoryRail;
     float memoryWake = sin(uElapsed * 0.004 + aUv.x * 42.0 - aUv.y * 31.0 + aSeed * 3.0) * 0.032 * memoryRail;
-    float veilSurface = smoothstep(0.22, 0.86, z) * depthWindow * veilMode;
-    float veilWeave = (0.5 + 0.5 * sin(aUv.x * 210.0 + aUv.y * 138.0 + aSeed * 5.0)) * veilSurface;
-    float modeLift = memoryRail * 0.086 + memoryWake * (0.45 + z * 0.72) + veilSurface * 0.035;
+    float edgeVeil = smoothstep(0.08, 0.72, aEdge) * depthWindow;
+    float edgeWeave = (0.5 + 0.5 * sin(aUv.x * 190.0 + aUv.y * 132.0 + aSeed * 4.0)) * edgeVeil;
+    float modeLift = memoryRail * 0.086 + memoryWake * (0.45 + z * 0.72) + edgeVeil * 0.026;
     float displaced = (z + glitch + trailWave + interactionLift + modeLift) * uDepthScale * uMorphAmount * localMorph * breathing * settledMotion * revealed;
 
     vec3 transformed = position;
@@ -752,7 +788,7 @@ const vertexShader = `
     transformed.xy += vec2(
       sin(aSeed * 8.0),
       cos(aSeed * 7.0)
-    ) * veilSurface * 0.006;
+    ) * edgeVeil * 0.004;
     transformed.z = displaced - uDepthScale * 0.45;
 
     float mono = dot(sourceColor, vec3(0.333333));
@@ -766,20 +802,19 @@ const vertexShader = `
     float pointLightFloor = depthWindow * scanTint * uBrightness * (1.0 - uBlankSource) * 0.16;
     float pointLight = max(pointLightFloor, reliefTone * fade * depthWindow * scanTint * uBrightness * blankBoost * (0.38 + localMorph * 0.62));
     pointLight += depthWindow * uBrightness * (memoryRail * 0.86 + memoryShimmer * 0.42);
+    pointLight += edgeVeil * uBrightness * (0.34 + edgeWeave * 0.22);
     vec3 litColor = colorChannel(displayColor * pointLight, uColorStrength);
     vec3 memoryTint = vec3(0.24, 0.78, 0.88) * memoryRail + vec3(0.92, 0.86, 0.52) * memoryShimmer * 0.34;
     litColor = mix(litColor, litColor + memoryTint, memoryMode);
-    vec3 veilTone = mix(sourceColor * (0.54 + pointLight * 0.5), vec3(0.92, 0.94, 0.9), 0.78 + veilWeave * 0.16);
-    litColor = mix(litColor, veilTone, veilMode);
+    vec3 edgeTone = mix(litColor, vec3(0.88, 0.9, 0.86), edgeVeil * (0.54 + edgeWeave * 0.16));
+    litColor = mix(litColor, edgeTone, 0.72);
     vec3 monoColor = vec3(pointLight * 0.78, pointLight * 0.82, pointLight * 0.9);
     vColor = mix(litColor, monoColor, step(0.5, uMonochrome));
-    float baseAlpha = clamp(depthWindow * uPointOpacity * (0.18 + localMorph * 0.82 + memoryRail * 0.38), 0.0, 1.0);
-    float veilAlpha = clamp((0.035 + veilSurface * (0.42 + veilWeave * 0.22)) * uPointOpacity * (0.7 + z * 0.5), 0.0, 0.78);
-    vAlpha = mix(baseAlpha, veilAlpha, veilMode);
+    vAlpha = clamp(depthWindow * uPointOpacity * (0.18 + localMorph * 0.82 + memoryRail * 0.38 + edgeVeil * 0.22), 0.0, 1.0);
 
     vec4 mvPosition = modelViewMatrix * vec4(transformed, 1.0);
     gl_PointSize = max(1.15, uPointSize * uViewportHeight * uPixelRatio * 0.108 / max(0.1, -mvPosition.z)) *
-      (1.0 + interactionField * 0.32 + memoryRail * 0.52 + memoryShimmer * 0.18 + veilSurface * 0.95 + veilWeave * 0.25);
+      (1.0 + interactionField * 0.32 + memoryRail * 0.52 + memoryShimmer * 0.18 + edgeVeil * 0.42 + edgeWeave * 0.16);
     gl_Position = projectionMatrix * mvPosition;
   }
 `;

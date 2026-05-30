@@ -89,7 +89,7 @@ export function decodeShareableState(hash: string): Partial<ShareableState> {
   }
 
   const artMode = query.get("art");
-  if (artMode === "relief" || artMode === "memory" || artMode === "veil") {
+  if (artMode === "relief" || artMode === "memory") {
     params.artMode = artMode;
   }
 
