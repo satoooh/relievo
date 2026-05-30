@@ -52,19 +52,30 @@ export const presets: ReliefPreset[] = [
     name: "LiDAR Scan",
     description: "Sharper cyan-green scan styling with foreground emphasis.",
     params: {
+      gridWidth: 420,
+      gridHeight: 236,
       depthScale: 3.3,
-      pointSize: 2.2,
-      pointOpacity: 0.88,
-      colorStrength: 0.95,
-      backgroundFade: 0.38,
-      foregroundBoost: 0.38,
+      depthGamma: 1.42,
+      pointSize: 0.12,
+      pointOpacity: 0.69,
+      colorStrength: 1,
+      backgroundFade: 0.67,
+      foregroundBoost: 0.81,
       nearThreshold: 0.04,
       farThreshold: 0.95,
       brightness: 0.78,
       textureMix: 0.48,
       temporalSmoothing: 0.7,
-      scanReveal: 0.72,
+      inferenceFPS: 20,
+      renderScale: 1.25,
+      morphAmount: 1,
+      morphSpeed: 0.66,
+      scanReveal: 1,
       scanDirection: "left-right",
+      trailAmount: 0,
+      breathing: 0.01,
+      depthQuantize: 0,
+      glitchAmount: 0.01,
       monochrome: false,
     },
   },
@@ -150,7 +161,7 @@ export const presets: ReliefPreset[] = [
   },
 ];
 
-export const initialPresetId = "synthetic-depth";
+export const initialPresetId = "lidar-scan";
 
 export function findPreset(id: string): ReliefPreset {
   return presets.find((preset) => preset.id === id) ?? presets[0]!;
