@@ -6,7 +6,7 @@ export const defaultParams: ReliefParams = {
   gridHeight: 236,
   depthScale: 3.3,
   depthGamma: 1.42,
-  pointSize: 0.28,
+  pointSize: 0.12,
   pointOpacity: 0.64,
   colorStrength: 1,
   temporalSmoothing: 0.7,
