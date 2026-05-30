@@ -11,10 +11,12 @@ export class ReliefRenderer {
   private readonly controls: OrbitControls;
   private readonly geometry = new THREE.BufferGeometry();
   private readonly material = new THREE.PointsMaterial({
-    size: 2.6,
+    size: 0.65,
+    map: createPointTexture(),
+    alphaTest: 0.02,
     vertexColors: true,
     transparent: true,
-    opacity: 0.78,
+    opacity: 0.84,
     sizeAttenuation: true,
     depthWrite: false,
     blending: THREE.NormalBlending,
@@ -41,15 +43,15 @@ export class ReliefRenderer {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setClearColor(0x08090b, 1);
 
-    this.camera = new THREE.PerspectiveCamera(45, 1, 0.01, 100);
-    this.camera.position.set(0, 0.2, 6.2);
+    this.camera = new THREE.PerspectiveCamera(42, 1, 0.01, 100);
+    this.camera.position.set(0, 0.16, 7.6);
     this.controls = new OrbitControls(this.camera, canvas);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.08;
     this.controls.target.set(0, 0, 0);
 
     this.scene.add(this.points);
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+    this.scene.add(new THREE.AmbientLight(0xffffff, 0.65));
   }
 
   setFrame(sample: FrameSample, depth: Float32Array, params: ReliefParams): void {
@@ -132,6 +134,8 @@ export class ReliefRenderer {
     const introMorph = Math.min(1, ((now - this.startedAt) * params.morphSpeed) / 1800);
     const scan = scanThreshold(params, now - this.startedAt);
     const quantizeSteps = Math.max(0, Math.round(params.depthQuantize));
+    const near = Math.min(params.nearThreshold, params.farThreshold - 0.02);
+    const far = Math.max(params.farThreshold, near + 0.02);
 
     for (let y = 0; y < this.height; y += 1) {
       const yn = this.height <= 1 ? 0 : y / (this.height - 1);
@@ -150,11 +154,12 @@ export class ReliefRenderer {
           z = Math.round(z * quantizeSteps) / quantizeSteps;
         }
 
+        const depthWindow = smoothstep(near, near + 0.04, z) * (1 - smoothstep(far - 0.04, far, z));
         const foreground = Math.min(1, z + params.foregroundBoost * z);
         const trailWave = Math.sin((now - this.startedAt) * 0.003 + x * 0.13 + y * 0.07) * params.trailAmount;
         const displaced = (z + glitch + trailWave) * params.depthScale * params.morphAmount * introMorph * breathing * revealed;
-        this.positions[positionIndex] = (xn - 0.5) * aspect * 4.8;
-        this.positions[positionIndex + 1] = (0.5 - yn) * 4.8;
+        this.positions[positionIndex] = (xn - 0.5) * aspect * 3.95;
+        this.positions[positionIndex + 1] = (0.5 - yn) * 3.95;
         this.positions[positionIndex + 2] = displaced - params.depthScale * 0.45;
 
         const r = (image[pixelIndex] ?? 0) / 255;
@@ -164,10 +169,20 @@ export class ReliefRenderer {
         const fade = params.backgroundFade + foreground * (1 - params.backgroundFade);
         const strength = params.colorStrength;
         const scanTint = revealed < 1 ? 0.24 : 1;
+        const depthShade = Math.pow(z, 0.72);
+        const texture = params.monochrome ? mono : (r + g + b) / 3;
+        const reliefTone = depthShade * (1 - params.textureMix) + texture * params.textureMix;
+        const pointLight = reliefTone * fade * depthWindow * scanTint * params.brightness;
 
-        this.colors[positionIndex] = colorChannel(params.monochrome ? mono * 0.65 : r, strength, fade, scanTint, 0.48);
-        this.colors[positionIndex + 1] = colorChannel(params.monochrome ? mono * 0.9 : g, strength, fade, scanTint, 0.86);
-        this.colors[positionIndex + 2] = colorChannel(params.monochrome ? mono : b, strength, fade, scanTint, 1);
+        if (params.monochrome) {
+          this.colors[positionIndex] = clamp01(pointLight * 0.78);
+          this.colors[positionIndex + 1] = clamp01(pointLight * 0.82);
+          this.colors[positionIndex + 2] = clamp01(pointLight * 0.9);
+        } else {
+          this.colors[positionIndex] = colorChannel(r * pointLight, strength, 1, 1, 0.18);
+          this.colors[positionIndex + 1] = colorChannel(g * pointLight, strength, 1, 1, 0.42);
+          this.colors[positionIndex + 2] = colorChannel(b * pointLight, strength, 1, 1, 0.72);
+        }
       }
     }
 
@@ -195,7 +210,7 @@ export class ReliefRenderer {
 
 function colorChannel(value: number, strength: number, fade: number, scanTint: number, tint: number): number {
   const colored = value * strength + tint * (1 - strength);
-  return Math.min(1, Math.max(0, colored * fade * scanTint));
+  return clamp01(colored * fade * scanTint);
 }
 
 function scanThreshold(params: ReliefParams, elapsedMs: number): number {
@@ -224,4 +239,32 @@ function scanValue(direction: ReliefParams["scanDirection"], xn: number, yn: num
 function pseudoNoise(x: number, y: number, now: number): number {
   const value = Math.sin(x * 12.9898 + y * 78.233 + Math.floor(now / 120) * 0.31) * 43758.5453;
   return (value - Math.floor(value) - 0.5) * 2;
+}
+
+function clamp01(value: number): number {
+  return Math.min(1, Math.max(0, value));
+}
+
+function createPointTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  const size = 64;
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext("2d");
+
+  if (context) {
+    context.fillStyle = "rgba(255,255,255,1)";
+    context.beginPath();
+    context.arc(32, 32, 12, 0, Math.PI * 2);
+    context.fill();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function smoothstep(edge0: number, edge1: number, value: number): number {
+  const t = Math.min(1, Math.max(0, (value - edge0) / Math.max(0.0001, edge1 - edge0)));
+  return t * t * (3 - 2 * t);
 }

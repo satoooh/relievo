@@ -21,6 +21,10 @@ export interface ViewElements {
     | "temporalSmoothing"
     | "backgroundFade"
     | "foregroundBoost"
+    | "nearThreshold"
+    | "farThreshold"
+    | "brightness"
+    | "textureMix"
     | "inferenceFPS"
     | "renderScale"
     | "morphAmount"
@@ -41,12 +45,16 @@ type SliderKey = keyof ViewElements["controls"];
 const sliders: Array<{ key: SliderKey; label: string; min: number; max: number; step: number }> = [
   { key: "depthScale", label: "Depth", min: 0, max: 6, step: 0.05 },
   { key: "depthGamma", label: "Gamma", min: 0.3, max: 2.4, step: 0.01 },
-  { key: "pointSize", label: "Point", min: 0.5, max: 6, step: 0.1 },
+  { key: "pointSize", label: "Point", min: 0.25, max: 6, step: 0.05 },
   { key: "pointOpacity", label: "Opacity", min: 0.05, max: 1, step: 0.01 },
   { key: "colorStrength", label: "Color", min: 0, max: 1, step: 0.01 },
   { key: "temporalSmoothing", label: "Smooth", min: 0, max: 0.96, step: 0.01 },
   { key: "backgroundFade", label: "Fade", min: 0.05, max: 1, step: 0.01 },
   { key: "foregroundBoost", label: "Boost", min: 0, max: 1, step: 0.01 },
+  { key: "nearThreshold", label: "Near", min: 0, max: 0.95, step: 0.01 },
+  { key: "farThreshold", label: "Far", min: 0.05, max: 1, step: 0.01 },
+  { key: "brightness", label: "Bright", min: 0.05, max: 1.8, step: 0.01 },
+  { key: "textureMix", label: "Texture", min: 0, max: 1, step: 0.01 },
   { key: "inferenceFPS", label: "Infer FPS", min: 1, max: 30, step: 1 },
   { key: "renderScale", label: "Render", min: 0.5, max: 1.25, step: 0.05 },
   { key: "morphAmount", label: "Morph", min: 0, max: 1, step: 0.01 },
@@ -66,10 +74,10 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
       </section>
 
       <header class="pointer-events-none absolute left-0 right-0 top-0 z-20 flex flex-col items-start justify-between gap-3 p-4 md:flex-row md:gap-4 md:p-5">
-        <div class="max-w-[560px]">
-          <h1 class="text-[clamp(2rem,6vw,5.5rem)] font-semibold leading-none tracking-normal">Relievo</h1>
-          <p class="mt-2 max-w-[34rem] text-sm leading-6 text-white/72 md:text-base">
-            Browser depth relief renderer. 2.5D expression, not 3D reconstruction.
+        <div class="max-w-[360px] rounded border border-white/8 bg-black/30 px-3 py-2 text-white/74 backdrop-blur-md">
+          <h1 class="text-lg font-semibold leading-none tracking-normal">Relievo</h1>
+          <p class="mt-1 text-xs leading-5">
+            Dark point relief renderer. 2.5D, not reconstruction.
           </p>
         </div>
         <div id="status" class="pointer-events-auto w-full max-w-[340px] rounded border border-white/14 bg-black/46 px-3 py-2 text-xs leading-5 text-white/74 backdrop-blur-md md:min-w-[220px] md:max-w-none"></div>

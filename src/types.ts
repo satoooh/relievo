@@ -15,6 +15,10 @@ export interface ReliefParams {
   temporalSmoothing: number;
   backgroundFade: number;
   foregroundBoost: number;
+  nearThreshold: number;
+  farThreshold: number;
+  brightness: number;
+  textureMix: number;
   inferenceFPS: number;
   renderScale: number;
   adaptiveQuality: boolean;
