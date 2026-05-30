@@ -52,8 +52,6 @@ The relief field now includes a depth/color edge buffer that brightens and sligh
 Relief field material patterns are intentionally narrower than full modes:
 
 - Depthkit field: the default balance of source readability, white dotted edge light, and surface depth.
-- Silhouette trace: stronger contour particles around depth and color discontinuities.
 - Soft fabric: lower-contrast woven particle texture for cloth, skin, and fine local detail.
-- Sparse particles: more negative space and larger point presence for checking whether the field reads as particles instead of video noise.
 
 MediaPipe should be introduced only if memory trails or the interaction field benefit from semantic control. The likely first use is a hand or face force field: detected landmarks would become local attractors, cuts, or pressure points over the depth surface. That keeps the artwork in the Relievo material language while making webcam interaction more performative.

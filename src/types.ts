@@ -8,7 +8,7 @@ export type QualityMode = "visual" | "balanced" | "quality";
 
 export type ArtMode = "relief" | "memory";
 
-export type ReliefMaterial = "depthkit" | "silhouette" | "fabric" | "sparse";
+export type ReliefMaterial = "depthkit" | "fabric";
 
 export type DepthBackendSelection =
   | "worker-cpu-heuristic"

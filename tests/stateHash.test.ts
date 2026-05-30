@@ -14,7 +14,7 @@ describe("shareable state hash", () => {
       params: {
         ...defaultParams,
         artMode: "memory",
-        reliefMaterial: "silhouette",
+        reliefMaterial: "fabric",
         particleInertia: 0.52,
         pointSize: 0.22,
         qualityMode: "visual",
@@ -33,7 +33,7 @@ describe("shareable state hash", () => {
     });
     expect(decoded.params).toMatchObject({
       artMode: "memory",
-      reliefMaterial: "silhouette",
+      reliefMaterial: "fabric",
       particleInertia: 0.52,
       pointSize: 0.22,
       qualityMode: "visual",

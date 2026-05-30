@@ -130,9 +130,7 @@ const artModeOptions: Array<{ id: ArtMode; label: string; tooltip: string }> = [
 
 const reliefMaterialOptions: Array<{ id: ReliefMaterial; label: string; tooltip: string }> = [
   { id: "depthkit", label: "Depthkit field", tooltip: "Balanced white dotted surface with readable source color" },
-  { id: "silhouette", label: "Silhouette trace", tooltip: "Sharper white contour particles around depth and color edges" },
   { id: "fabric", label: "Soft fabric", tooltip: "Fine woven point texture for cloth and skin detail" },
-  { id: "sparse", label: "Sparse particles", tooltip: "Airier particle field with more negative space" },
 ];
 
 export function createView(root: HTMLElement, params: ReliefParams): ViewElements {

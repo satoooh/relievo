@@ -95,12 +95,7 @@ export function decodeShareableState(hash: string): Partial<ShareableState> {
   }
 
   const reliefMaterial = query.get("material");
-  if (
-    reliefMaterial === "depthkit" ||
-    reliefMaterial === "silhouette" ||
-    reliefMaterial === "fabric" ||
-    reliefMaterial === "sparse"
-  ) {
+  if (reliefMaterial === "depthkit" || reliefMaterial === "fabric") {
     params.reliefMaterial = reliefMaterial;
   }
 

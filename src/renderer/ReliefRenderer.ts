@@ -26,6 +26,10 @@ export class ReliefRenderer {
   private readonly emojiScale = new THREE.Vector3();
   private readonly emojiPosition = new THREE.Vector3();
   private readonly interactionUv = new THREE.Vector2(0.5, 0.5);
+  private readonly pointerRaycaster = new THREE.Raycaster();
+  private readonly pointerNdc = new THREE.Vector2();
+  private readonly pointerHit = new THREE.Vector3();
+  private readonly interactionPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
   private positions = new Float32Array();
   private uvs = new Float32Array();
   private previousDepths = new Float32Array();
@@ -33,10 +37,13 @@ export class ReliefRenderer {
   private previousColors = new Float32Array();
   private colors = new Float32Array();
   private motionEnergy = new Float32Array();
+  private recentMotion = new Float32Array();
   private edgeStrengths = new Float32Array();
   private seeds = new Float32Array();
   private width = 0;
   private height = 0;
+  private planeWidth = 1;
+  private planeHeight = 1;
   private animationFrame = 0;
   private lastEmojiSync = 0;
   private frameStartedAt = performance.now();
@@ -160,12 +167,15 @@ export class ReliefRenderer {
     this.previousColors = new Float32Array(count * 3);
     this.colors = new Float32Array(count * 3);
     this.motionEnergy = new Float32Array(count);
+    this.recentMotion = new Float32Array(count);
     this.edgeStrengths = new Float32Array(count);
     this.seeds = new Float32Array(count);
     const aspect = this.width / this.height;
     const maxPlaneSize = 4.2;
     const planeWidth = aspect >= 1 ? maxPlaneSize : maxPlaneSize * aspect;
     const planeHeight = aspect >= 1 ? maxPlaneSize / aspect : maxPlaneSize;
+    this.planeWidth = planeWidth;
+    this.planeHeight = planeHeight;
 
     for (let y = 0; y < this.height; y += 1) {
       const yn = this.height <= 1 ? 0 : y / (this.height - 1);
@@ -190,6 +200,7 @@ export class ReliefRenderer {
     this.geometry.setAttribute("aPreviousColor", new THREE.BufferAttribute(this.previousColors, 3));
     this.geometry.setAttribute("aColor", new THREE.BufferAttribute(this.colors, 3));
     this.geometry.setAttribute("aMotion", new THREE.BufferAttribute(this.motionEnergy, 1));
+    this.geometry.setAttribute("aRecentMotion", new THREE.BufferAttribute(this.recentMotion, 1));
     this.geometry.setAttribute("aEdge", new THREE.BufferAttribute(this.edgeStrengths, 1));
     this.geometry.setAttribute("aSeed", new THREE.BufferAttribute(this.seeds, 1));
     this.geometry.computeBoundingSphere();
@@ -228,10 +239,12 @@ export class ReliefRenderer {
         Math.abs(nextRed - (this.previousColors[colorIndex] ?? nextRed)) +
         Math.abs(nextGreen - (this.previousColors[colorIndex + 1] ?? nextGreen)) +
         Math.abs(nextBlue - (this.previousColors[colorIndex + 2] ?? nextBlue));
+      const motionSignal = Math.abs(nextDepth - (this.previousDepths[index] ?? nextDepth)) * 3.6 + colorDelta * 0.28;
       const motion = this.hasFrame
-        ? clamp01(Math.abs(nextDepth - (this.previousDepths[index] ?? nextDepth)) * 4.8 + colorDelta * 0.55)
+        ? smoothstep(0.055, 0.34, motionSignal)
         : 0;
-      this.motionEnergy[index] = Math.max((this.motionEnergy[index] ?? 0) * 0.86, motion);
+      this.recentMotion[index] = motion;
+      this.motionEnergy[index] = Math.max((this.motionEnergy[index] ?? 0) * 0.88, motion);
       this.depths[index] = nextDepth;
       this.colors[colorIndex] = nextRed;
       this.colors[colorIndex + 1] = nextGreen;
@@ -250,6 +263,7 @@ export class ReliefRenderer {
     this.geometry.attributes.aPreviousColor!.needsUpdate = true;
     this.geometry.attributes.aColor!.needsUpdate = true;
     this.geometry.attributes.aMotion!.needsUpdate = true;
+    this.geometry.attributes.aRecentMotion!.needsUpdate = true;
     this.geometry.attributes.aEdge!.needsUpdate = true;
     this.lastEmojiSync = 0;
     this.preserveTransitionPreviousFrame = false;
@@ -385,6 +399,7 @@ export class ReliefRenderer {
     this.uniforms.uDepthGamma.value = params.depthGamma;
     this.uniforms.uDepthQuantize.value = Math.max(0, Math.round(params.depthQuantize));
     this.uniforms.uDepthScale.value = params.depthScale;
+    this.interactionPlane.constant = params.depthScale * 0.09;
     this.uniforms.uElapsed.value = elapsedMs;
     this.uniforms.uFarThreshold.value = far;
     this.uniforms.uFrameBlend.value = easeInOutCubic(clamp01((now - this.frameStartedAt) / this.frameBlendMs));
@@ -410,19 +425,12 @@ export class ReliefRenderer {
 
   private bindPointerInteraction(): void {
     this.canvas.addEventListener("pointermove", (event) => {
-      const rect = this.canvas.getBoundingClientRect();
-      if (rect.width <= 0 || rect.height <= 0) {
-        return;
-      }
-
-      this.interactionUv.set(
-        clamp01((event.clientX - rect.left) / rect.width),
-        clamp01((event.clientY - rect.top) / rect.height),
-      );
+      this.updateInteractionUvFromPointer(event);
       this.interactionLastAt = performance.now();
       this.interactionTargetStrength = event.buttons ? 1 : 0.54;
     });
-    this.canvas.addEventListener("pointerdown", () => {
+    this.canvas.addEventListener("pointerdown", (event) => {
+      this.updateInteractionUvFromPointer(event);
       this.interactionLastAt = performance.now();
       this.interactionTargetStrength = 1;
     });
@@ -432,6 +440,28 @@ export class ReliefRenderer {
     this.canvas.addEventListener("pointerleave", () => {
       this.interactionTargetStrength = 0;
     });
+  }
+
+  private updateInteractionUvFromPointer(event: PointerEvent): void {
+    const rect = this.canvas.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0 || this.planeWidth <= 0 || this.planeHeight <= 0) {
+      return;
+    }
+
+    this.pointerNdc.set(
+      ((event.clientX - rect.left) / rect.width) * 2 - 1,
+      -(((event.clientY - rect.top) / rect.height) * 2 - 1),
+    );
+    this.pointerRaycaster.setFromCamera(this.pointerNdc, this.camera);
+    const hit = this.pointerRaycaster.ray.intersectPlane(this.interactionPlane, this.pointerHit);
+    if (!hit) {
+      return;
+    }
+
+    this.interactionUv.set(
+      clamp01(hit.x / this.planeWidth + 0.5),
+      clamp01(0.5 - hit.y / this.planeHeight),
+    );
   }
 
   private updateInteractionStrength(now: number): void {
@@ -498,12 +528,8 @@ function artModeIndex(mode: ReliefParams["artMode"]): number {
 
 function reliefMaterialIndex(material: ReliefParams["reliefMaterial"]): number {
   switch (material) {
-    case "silhouette":
-      return 1;
     case "fabric":
-      return 2;
-    case "sparse":
-      return 3;
+      return 1;
     case "depthkit":
     default:
       return 0;
@@ -691,6 +717,7 @@ const vertexShader = `
   attribute vec3 aPreviousColor;
   attribute vec3 aColor;
   attribute float aMotion;
+  attribute float aRecentMotion;
   attribute float aEdge;
   attribute float aSeed;
 
@@ -784,21 +811,20 @@ const vertexShader = `
     float interactionLift = (interactionField * 0.055 + interactionRipple) * (0.62 + z * 0.72);
     float memoryMode = 1.0 - step(0.5, abs(uArtMode - 1.0));
     float depthkitMaterial = 1.0 - step(0.5, abs(uReliefMaterial - 0.0));
-    float silhouetteMaterial = 1.0 - step(0.5, abs(uReliefMaterial - 1.0));
-    float fabricMaterial = 1.0 - step(0.5, abs(uReliefMaterial - 2.0));
-    float sparseMaterial = 1.0 - step(0.5, abs(uReliefMaterial - 3.0));
-    float motionGlow = smoothstep(0.025, 0.64, aMotion) * memoryMode;
-    float memoryRail = pow(motionGlow, 0.72);
-    float memoryShimmer = (0.5 + 0.5 * sin(uElapsed * 0.009 + aSeed * 9.0 + z * 12.0)) * memoryRail;
-    float memoryWake = sin(uElapsed * 0.004 + aUv.x * 42.0 - aUv.y * 31.0 + aSeed * 3.0) * 0.032 * memoryRail;
-    float edgeStart = depthkitMaterial * 0.08 + silhouetteMaterial * 0.04 + fabricMaterial * 0.12 + sparseMaterial * 0.18;
-    float edgeEnd = depthkitMaterial * 0.72 + silhouetteMaterial * 0.5 + fabricMaterial * 0.82 + sparseMaterial * 0.66;
+    float fabricMaterial = 1.0 - step(0.5, abs(uReliefMaterial - 1.0));
+    float motionGlow = smoothstep(0.12, 0.82, aMotion) * memoryMode;
+    float recentGlow = smoothstep(0.18, 0.9, aRecentMotion) * memoryMode;
+    float memoryRail = pow(motionGlow, 0.86);
+    float memoryLatest = pow(recentGlow, 0.72);
+    float memoryShimmer = (0.5 + 0.5 * sin(uElapsed * 0.006 + aSeed * 7.0 + z * 9.0)) * memoryLatest;
+    float memoryWake = sin(uElapsed * 0.0024 + aUv.x * 32.0 - aUv.y * 24.0 + aSeed * 2.0) * 0.016 * memoryRail;
+    float edgeStart = depthkitMaterial * 0.08 + fabricMaterial * 0.12;
+    float edgeEnd = depthkitMaterial * 0.72 + fabricMaterial * 0.82;
     float edgeVeil = smoothstep(edgeStart, edgeEnd, aEdge) * depthWindow;
     float fabricWeave = (0.5 + 0.5 * sin(aUv.x * 260.0 + aSeed * 2.2)) *
       (0.5 + 0.5 * cos(aUv.y * 214.0 - aSeed * 1.8));
     float edgeWeave = (0.5 + 0.5 * sin(aUv.x * 190.0 + aUv.y * 132.0 + aSeed * 4.0)) * edgeVeil;
-    float sparseGate = mix(1.0, step(-0.28, random(aUv * 360.0 + vec2(aSeed))), sparseMaterial);
-    float edgeLiftScale = depthkitMaterial * 0.026 + silhouetteMaterial * 0.045 + fabricMaterial * 0.018 + sparseMaterial * 0.032;
+    float edgeLiftScale = depthkitMaterial * 0.026 + fabricMaterial * 0.018;
     float modeLift = memoryRail * 0.086 + memoryWake * (0.45 + z * 0.72) + edgeVeil * edgeLiftScale;
     float displaced = (z + glitch + trailWave + interactionLift + modeLift) * uDepthScale * uMorphAmount * localMorph * breathing * settledMotion * revealed;
 
@@ -811,11 +837,11 @@ const vertexShader = `
     transformed.xy += vec2(
       sin(aSeed * 6.1 + uElapsed * 0.0025),
       cos(aSeed * 5.4 + uElapsed * 0.0021)
-    ) * (memoryRail * 0.038 + memoryShimmer * 0.012);
+    ) * (memoryRail * 0.014 + memoryLatest * 0.018 + memoryShimmer * 0.006);
     transformed.xy += vec2(
       sin(aSeed * 8.0),
       cos(aSeed * 7.0)
-    ) * edgeVeil * (0.003 + silhouetteMaterial * 0.004 + sparseMaterial * 0.003);
+    ) * edgeVeil * 0.003;
     transformed.z = displaced - uDepthScale * 0.45;
 
     float mono = dot(sourceColor, vec3(0.333333));
@@ -828,28 +854,29 @@ const vertexShader = `
     float blankBoost = mix(1.0, 1.42, uBlankSource);
     float pointLightFloor = depthWindow * scanTint * uBrightness * (1.0 - uBlankSource) * 0.16;
     float pointLight = max(pointLightFloor, reliefTone * fade * depthWindow * scanTint * uBrightness * blankBoost * (0.38 + localMorph * 0.62));
-    pointLight += depthWindow * uBrightness * (memoryRail * 0.86 + memoryShimmer * 0.42);
-    float edgeLight = depthkitMaterial * 0.34 + silhouetteMaterial * 0.72 + fabricMaterial * 0.26 + sparseMaterial * 0.48;
-    pointLight += edgeVeil * uBrightness * (edgeLight + edgeWeave * (0.14 + silhouetteMaterial * 0.2) + fabricWeave * fabricMaterial * 0.18);
+    pointLight += depthWindow * uBrightness * (memoryRail * 0.28 + memoryLatest * 0.92 + memoryShimmer * 0.28);
+    float edgeLight = depthkitMaterial * 0.34 + fabricMaterial * 0.26;
+    pointLight += edgeVeil * uBrightness * (edgeLight + edgeWeave * 0.14 + fabricWeave * fabricMaterial * 0.18);
     vec3 litColor = colorChannel(displayColor * pointLight, uColorStrength);
-    vec3 memoryTint = vec3(0.24, 0.78, 0.88) * memoryRail + vec3(0.92, 0.86, 0.52) * memoryShimmer * 0.34;
-    litColor = mix(litColor, litColor + memoryTint, memoryMode);
-    vec3 materialWhite = mix(vec3(0.88, 0.9, 0.86), vec3(0.96, 0.97, 0.93), silhouetteMaterial * 0.55 + sparseMaterial * 0.2);
+    vec3 memoryOld = vec3(0.06, 0.16, 0.18) * memoryRail;
+    vec3 memoryRecent = vec3(0.92, 0.95, 0.9) * memoryLatest + vec3(0.2, 0.62, 0.66) * memoryShimmer * 0.24;
+    litColor = mix(litColor, litColor * (1.0 - memoryRail * 0.32) + memoryOld + memoryRecent, memoryMode);
+    vec3 materialWhite = vec3(0.88, 0.9, 0.86);
     vec3 fabricTint = mix(litColor, sourceColor * (0.62 + pointLight * 0.38), fabricMaterial * 0.72);
     litColor = mix(litColor, fabricTint, fabricMaterial * 0.62);
-    float edgeMix = depthkitMaterial * 0.72 + silhouetteMaterial * 0.94 + fabricMaterial * 0.42 + sparseMaterial * 0.76;
-    vec3 edgeTone = mix(litColor, materialWhite, edgeVeil * (0.46 + edgeWeave * 0.22 + silhouetteMaterial * 0.18));
+    float edgeMix = depthkitMaterial * 0.72 + fabricMaterial * 0.42;
+    vec3 edgeTone = mix(litColor, materialWhite, edgeVeil * (0.46 + edgeWeave * 0.22));
     litColor = mix(litColor, edgeTone, edgeMix);
     vec3 monoColor = vec3(pointLight * 0.78, pointLight * 0.82, pointLight * 0.9);
     vColor = mix(litColor, monoColor, step(0.5, uMonochrome));
-    float materialAlpha = depthkitMaterial * 1.0 + silhouetteMaterial * 0.9 + fabricMaterial * 0.82 + sparseMaterial * 0.72;
-    vAlpha = clamp(depthWindow * uPointOpacity * materialAlpha * sparseGate * (0.18 + localMorph * 0.82 + memoryRail * 0.38 + edgeVeil * (0.2 + silhouetteMaterial * 0.2)), 0.0, 1.0);
+    float materialAlpha = depthkitMaterial * 1.0 + fabricMaterial * 0.82;
+    vAlpha = clamp(depthWindow * uPointOpacity * materialAlpha * (0.18 + localMorph * 0.82 + memoryRail * 0.2 + memoryLatest * 0.34 + edgeVeil * 0.2), 0.0, 1.0);
 
     vec4 mvPosition = modelViewMatrix * vec4(transformed, 1.0);
-    float materialPointScale = depthkitMaterial * 1.0 + silhouetteMaterial * 1.12 + fabricMaterial * 0.92 + sparseMaterial * 1.34;
+    float materialPointScale = depthkitMaterial * 1.0 + fabricMaterial * 0.92;
     gl_PointSize = max(1.15, uPointSize * uViewportHeight * uPixelRatio * 0.108 / max(0.1, -mvPosition.z)) *
       materialPointScale *
-      (1.0 + interactionField * 0.32 + memoryRail * 0.52 + memoryShimmer * 0.18 + edgeVeil * (0.36 + silhouetteMaterial * 0.34 + sparseMaterial * 0.22) + edgeWeave * 0.16 + fabricWeave * fabricMaterial * 0.08);
+      (1.0 + interactionField * 0.32 + memoryRail * 0.22 + memoryLatest * 0.42 + memoryShimmer * 0.1 + edgeVeil * 0.36 + edgeWeave * 0.16 + fabricWeave * fabricMaterial * 0.08);
     gl_Position = projectionMatrix * mvPosition;
   }
 `;
