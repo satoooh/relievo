@@ -1,4 +1,4 @@
-import type { DepthResult, FrameSample } from "../types";
+import type { DepthBackendSelection, DepthResult, FrameSample } from "../types";
 
 interface PendingRequest {
   reject: (reason?: unknown) => void;
@@ -7,7 +7,8 @@ interface PendingRequest {
 
 interface DepthWorkerResponse {
   id: number;
-  result: DepthResult;
+  error?: string;
+  result?: DepthResult;
 }
 
 export class DepthPipeline {
@@ -22,8 +23,16 @@ export class DepthPipeline {
         return;
       }
 
-      this.pending.delete(event.data.id);
-      request.resolve(event.data.result);
+      if (event.data.error) {
+        this.pending.delete(event.data.id);
+        request.reject(new Error(event.data.error));
+        return;
+      }
+
+      if (event.data.result) {
+        this.pending.delete(event.data.id);
+        request.resolve(event.data.result);
+      }
     });
 
     this.worker.addEventListener("error", (event) => {
@@ -39,13 +48,13 @@ export class DepthPipeline {
     return this.pending.size > 0;
   }
 
-  estimate(sample: FrameSample): Promise<DepthResult> {
+  estimate(sample: FrameSample, backend: DepthBackendSelection): Promise<DepthResult> {
     const id = this.nextId;
     this.nextId += 1;
 
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
-      this.worker.postMessage({ id, sample });
+      this.worker.postMessage({ backend, id, sample });
     });
   }
 

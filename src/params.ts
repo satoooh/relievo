@@ -1,6 +1,7 @@
 import type { ReliefParams } from "./types";
 
 export const defaultParams: ReliefParams = {
+  depthBackend: "depth-anything-v2-small",
   gridWidth: 420,
   gridHeight: 236,
   depthScale: 3.3,

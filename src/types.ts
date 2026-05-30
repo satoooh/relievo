@@ -2,9 +2,12 @@ export type SourceKind = "demo" | "image" | "video" | "webcam";
 
 export type ScanDirection = "left-right" | "right-left" | "top-bottom" | "bottom-top";
 
-export type DepthBackend = "cpu-heuristic" | "worker-cpu-heuristic";
+export type DepthBackendSelection = "worker-cpu-heuristic" | "depth-anything-v2-small" | "depth-anything-v2-base";
+
+export type DepthBackend = "cpu-heuristic" | DepthBackendSelection;
 
 export interface ReliefParams {
+  depthBackend: DepthBackendSelection;
   gridWidth: number;
   gridHeight: number;
   depthScale: number;

@@ -1,14 +1,17 @@
+import { estimateDepthAnything } from "./depthAnything";
 import { estimateHeuristicDepth } from "./heuristicDepth";
-import type { DepthResult, FrameSample } from "../types";
+import type { DepthBackendSelection, DepthResult, FrameSample } from "../types";
 
 interface DepthWorkerRequest {
+  backend: DepthBackendSelection;
   id: number;
   sample: FrameSample;
 }
 
 interface DepthWorkerResponse {
+  error?: string;
   id: number;
-  result: DepthResult;
+  result?: DepthResult;
 }
 
 const workerScope = self as unknown as {
@@ -17,7 +20,22 @@ const workerScope = self as unknown as {
 };
 
 workerScope.onmessage = (event) => {
-  const result = estimateHeuristicDepth(event.data.sample);
-  result.backend = "worker-cpu-heuristic";
-  workerScope.postMessage({ id: event.data.id, result }, [result.depth.buffer]);
+  void estimate(event.data)
+    .then((result) => {
+      workerScope.postMessage({ id: event.data.id, result }, [result.depth.buffer]);
+    })
+    .catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      workerScope.postMessage({ error: message, id: event.data.id }, []);
+    });
 };
+
+async function estimate(request: DepthWorkerRequest): Promise<DepthResult> {
+  if (request.backend === "worker-cpu-heuristic") {
+    const result = estimateHeuristicDepth(request.sample);
+    result.backend = "worker-cpu-heuristic";
+    return result;
+  }
+
+  return estimateDepthAnything(request.sample, request.backend);
+}

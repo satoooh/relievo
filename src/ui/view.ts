@@ -1,4 +1,5 @@
-import type { ReliefParams, RuntimeStats, ScanDirection } from "../types";
+import { depthBackendLabel, depthBackendOptions } from "../depth/depthBackends";
+import type { DepthBackendSelection, ReliefParams, RuntimeStats, ScanDirection } from "../types";
 import { presets } from "../presets";
 
 export interface ViewElements {
@@ -10,6 +11,7 @@ export interface ViewElements {
   screenshotButton: HTMLButtonElement;
   recordButton: HTMLButtonElement;
   presetSelect: HTMLSelectElement;
+  depthBackendSelect: HTMLSelectElement;
   status: HTMLElement;
   controls: Record<keyof Pick<
     ReliefParams,
@@ -103,6 +105,8 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
           <button id="record-button" class="rounded border border-white/12 bg-white/8 px-3 py-2 text-sm hover:bg-white/14">REC</button>
         </div>
 
+        <select id="depth-backend-select" class="mt-2 w-full rounded border border-white/12 bg-[#12161d] px-3 py-2 text-sm text-white"></select>
+
         <div id="slider-panel" class="mt-3 grid grid-cols-1 gap-2"></div>
 
         <div class="mt-3 grid grid-cols-2 gap-2 text-sm">
@@ -147,12 +151,18 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
     presetSelect.insertAdjacentHTML("beforeend", `<option value="${preset.id}">${preset.name}</option>`);
   }
 
+  const depthBackendSelect = mustGet<HTMLSelectElement>("depth-backend-select");
+  for (const backend of depthBackendOptions) {
+    depthBackendSelect.insertAdjacentHTML("beforeend", `<option value="${backend.id}">${backend.label}</option>`);
+  }
+
   const adaptiveQuality = mustGet<HTMLInputElement>("adaptive-quality");
   const monochrome = mustGet<HTMLInputElement>("monochrome");
   const scanDirection = mustGet<HTMLSelectElement>("scan-direction");
   adaptiveQuality.checked = params.adaptiveQuality;
   monochrome.checked = params.monochrome;
   scanDirection.value = params.scanDirection;
+  depthBackendSelect.value = params.depthBackend;
 
   return {
     canvas: mustGet<HTMLCanvasElement>("relievo-canvas"),
@@ -163,6 +173,7 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
     screenshotButton: mustGet<HTMLButtonElement>("screenshot-button"),
     recordButton: mustGet<HTMLButtonElement>("record-button"),
     presetSelect,
+    depthBackendSelect,
     status: mustGet<HTMLElement>("status"),
     controls,
     adaptiveQuality,
@@ -183,6 +194,7 @@ export function syncView(elements: ViewElements, params: ReliefParams, stats: Ru
   elements.adaptiveQuality.checked = params.adaptiveQuality;
   elements.monochrome.checked = params.monochrome;
   elements.scanDirection.value = params.scanDirection;
+  elements.depthBackendSelect.value = params.depthBackend;
   elements.recordButton.textContent = stats.recording ? "STOP" : "REC";
   elements.recordButton.disabled = !stats.recordingSupported;
   elements.recordButton.className = stats.recording
@@ -194,9 +206,9 @@ export function syncView(elements: ViewElements, params: ReliefParams, stats: Ru
     <div>Source: ${stats.sourceKind}</div>
     <div>Render: ${stats.renderFPS.toFixed(1)} FPS</div>
     <div>Inference: ${stats.inferenceFPS.toFixed(1)} FPS / ${stats.inferenceMs.toFixed(1)} ms</div>
-    <div>Backend: ${stats.backend}</div>
+    <div>Backend: ${depthBackendLabel(stats.backend)}</div>
     <div>Pipeline: ${stats.pipeline}</div>
-    <div>WebGPU: ${stats.webgpuAvailable ? "available" : "not available"} / WASM: inactive</div>
+    <div>WebGPU: ${stats.webgpuAvailable ? "available" : "not available"} / WASM fallback: enabled</div>
     <div>Quality: ${stats.quality}</div>
     ${stats.message ? `<div class="mt-1 text-[#f6c76f]">${stats.message}</div>` : ""}
   `;
@@ -224,6 +236,10 @@ export function bindParamControls(
   });
   elements.scanDirection.addEventListener("change", () => {
     params.scanDirection = elements.scanDirection.value as ScanDirection;
+    onChange();
+  });
+  elements.depthBackendSelect.addEventListener("change", () => {
+    params.depthBackend = elements.depthBackendSelect.value as DepthBackendSelection;
     onChange();
   });
 }

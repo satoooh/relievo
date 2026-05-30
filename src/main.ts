@@ -1,6 +1,7 @@
 import "./style.css";
 import { defaultParams, qualityLabel } from "./params";
 import { DepthPipeline } from "./depth/DepthPipeline";
+import { depthBackendLabel, isDepthAnythingBackend } from "./depth/depthBackends";
 import { TemporalSmoother } from "./depth/smoothing";
 import { CanvasRecorder, downloadCanvasPNG, timestamp } from "./export/capture";
 import { FrameSampler } from "./media/frameSampler";
@@ -40,13 +41,13 @@ const stats: RuntimeStats = {
   renderFPS: 0,
   inferenceFPS: 0,
   inferenceMs: 0,
-  backend: "worker-cpu-heuristic",
+  backend: params.depthBackend,
   sourceKind: source.kind,
   webgpuAvailable: detectWebGPU(),
   recordingSupported: CanvasRecorder.isSupported(elements.canvas),
   recording: false,
   quality: qualityLabel(params),
-  pipeline: "worker CPU, render loop decoupled",
+  pipeline: pipelineLabel(params.depthBackend),
   message: "",
 };
 
@@ -131,8 +132,10 @@ async function setSource(next: MediaSourceHandle): Promise<void> {
 }
 
 function applyPreset(id: string): void {
+  const selectedBackend = params.depthBackend;
   currentPresetId = id;
   Object.assign(params, defaultParams, findPreset(id).params);
+  params.depthBackend = selectedBackend;
   elements.presetSelect.value = currentPresetId;
   smoother.reset();
   renderer.restartIntro();
@@ -210,7 +213,21 @@ async function runInference(force: boolean): Promise<void> {
   adaptQuality();
 
   const sample = sampler.sample(element, params.gridWidth, params.gridHeight, source.kind);
-  const result = await depthPipeline.estimate(sample);
+  if (isDepthAnythingBackend(params.depthBackend) && stats.backend !== params.depthBackend) {
+    setMessage(`${depthBackendLabel(params.depthBackend)} is loading. First run downloads the ONNX model.`);
+  }
+
+  let result;
+  try {
+    result = await depthPipeline.estimate(sample, params.depthBackend);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    setMessage(`${depthBackendLabel(params.depthBackend)} failed. Falling back to heuristic. ${detail}`);
+    params.depthBackend = "worker-cpu-heuristic";
+    smoother.reset();
+    result = await depthPipeline.estimate(sample, params.depthBackend);
+  }
+
   const smoothed = smoother.smooth(result.depth, params.temporalSmoothing);
   renderer.setFrame(sample, smoothed, params);
 
@@ -219,6 +236,7 @@ async function runInference(force: boolean): Promise<void> {
   stats.inferenceFPS = inferenceMeter.tick();
   stats.sourceKind = source.kind;
   stats.quality = qualityLabel(params);
+  stats.pipeline = pipelineLabel(result.backend);
 }
 
 function adaptQuality(): void {
@@ -244,6 +262,14 @@ function sync(): void {
   stats.recordingSupported = CanvasRecorder.isSupported(elements.canvas);
   stats.quality = qualityLabel(params);
   syncView(elements, params, stats);
+}
+
+function pipelineLabel(backend: RuntimeStats["backend"]): string {
+  if (backend === "depth-anything-v2-small" || backend === "depth-anything-v2-base") {
+    return "Transformers.js Depth Anything V2, q4, WebGPU/WASM";
+  }
+
+  return "worker CPU heuristic, render loop decoupled";
 }
 
 async function withUiError(label: string, action: () => Promise<void>): Promise<void> {

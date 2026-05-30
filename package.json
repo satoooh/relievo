@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@huggingface/transformers": "^4.2.0",
     "lil-gui": "^0.20.0",
     "three": "^0.181.2"
   },

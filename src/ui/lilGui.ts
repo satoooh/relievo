@@ -6,6 +6,7 @@ export function createAdvancedGui(params: ReliefParams, onChange: () => void): G
   gui.close();
 
   const depth = gui.addFolder("Depth");
+  depth.add(params, "depthBackend", ["depth-anything-v2-small", "depth-anything-v2-base", "worker-cpu-heuristic"]).onChange(onChange);
   depth.add(params, "depthScale", 0, 6, 0.05).onChange(onChange);
   depth.add(params, "depthGamma", 0.3, 2.4, 0.01).onChange(onChange);
   depth.add(params, "temporalSmoothing", 0, 0.96, 0.01).onChange(onChange);
@@ -13,7 +14,7 @@ export function createAdvancedGui(params: ReliefParams, onChange: () => void): G
   depth.add(params, "backgroundFade", 0.05, 1, 0.01).onChange(onChange);
 
   const render = gui.addFolder("Render");
-  render.add(params, "pointSize", 0.5, 6, 0.1).onChange(onChange);
+  render.add(params, "pointSize", 0.12, 6, 0.02).onChange(onChange);
   render.add(params, "pointOpacity", 0.05, 1, 0.01).onChange(onChange);
   render.add(params, "colorStrength", 0, 1, 0.01).onChange(onChange);
   render.add(params, "renderScale", 0.5, 1.25, 0.05).onChange(onChange);

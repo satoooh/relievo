@@ -34,6 +34,14 @@ export function createDemoCanvas(width = 1280, height = 720): HTMLCanvasElement 
     return canvas;
   }
 
+  const image = new Image();
+  image.decoding = "async";
+  image.src = "/demo/studio-depth-demo.png";
+  image.addEventListener("load", () => {
+    context.clearRect(0, 0, width, height);
+    context.drawImage(image, 0, 0, width, height);
+  });
+
   const gradient = context.createLinearGradient(0, 0, width, height);
   gradient.addColorStop(0, "#06131d");
   gradient.addColorStop(0.42, "#1a766f");
