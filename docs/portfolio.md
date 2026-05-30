@@ -9,34 +9,39 @@
    - Primary action: Try the demo.
 
 2. Concept
-   - Relievo transforms flat media into an interactive 2.5D particle sculpture.
+   - Relievo transforms flat media into an interactive 2.5D relief plane in a 3D scene.
    - It keeps sampling, depth inference, WebGL rendering, tuning, and export in the browser.
+   - It begins from a blank point field so media input feels like a deformation of the same surface, not a separate mode.
 
 3. Interaction
    - Upload image or video.
    - Start webcam.
    - Tune depth scale, point size, opacity, temporal smoothing, scan reveal, and presets.
+   - Hide the control surface with performance mode for projection, recording, and installation tests.
+   - Share repeatable blank/demo states through URL hashes.
+   - Test symbolic micro-texture with emoji mosaic mode while keeping the relief plane as the primary spatial object.
    - Save screenshots or short MP4/WebM clips.
 
 4. Technical Highlights
    - TypeScript + Vite + Tailwind CSS.
-   - Three.js point cloud renderer with OrbitControls.
+   - Three.js point-field relief renderer with OrbitControls.
    - CPU heuristic and Depth Anything V2 depth backends with an isolated estimator boundary.
    - Decoupled inference and render loops.
    - Shader-driven point relief animation.
-   - MediaRecorder export with MP4 preference and WebM fallback.
+   - MediaRecorder export with Web/Archive quality, MP4 preference, and WebM fallback.
 
 5. Technical Direction
    - The deterministic local estimator remains useful for fast startup and portability.
    - Neural backends trade startup/model cost for stronger depth structure.
    - Demo materials should emphasize real-time browser inference and live visual control.
+   - The repository should read as an open-source artwork rather than a community-first SDK.
 
 ## Article Outline
 
 Title candidates:
 
 - Building Relievo: a Browser-Based Depth Relief Renderer
-- 2.5D, Not 3D: Turning Video Into a Particle Relief in Three.js
+- 2.5D in 3D Space: Turning Video Into a Particle Relief Plane in Three.js
 - Designing an Honest Monocular Depth Visual Instrument
 
 Outline:

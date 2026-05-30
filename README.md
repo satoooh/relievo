@@ -1,8 +1,8 @@
 # Relievo
 
-Relievo is a browser-based depth relief renderer for turning images, video, and webcam input into live 2.5D point-cloud sculptures.
+Relievo is a browser-based depth relief instrument for turning images, video, and webcam input into live 2.5D surfaces in a 3D scene.
 
-It runs media sampling, depth inference, WebGL point rendering, live tuning, and capture export directly in the browser.
+It runs media sampling, Depth Anything V2 inference, WebGL point rendering, live tuning, and capture export directly in the browser.
 
 ## Demo
 
@@ -12,12 +12,16 @@ It runs media sampling, depth inference, WebGL point rendering, live tuning, and
 
 ## What It Does
 
+- Starts from a quiet blank point field that can bend into image, video, or webcam-driven relief.
 - Loads a still image, local video file, webcam stream, or built-in demo frame.
 - Estimates a depth-like relief map in a Web Worker with selectable heuristic and Depth Anything V2 backends.
-- Renders a 256 x 144 point relief by default, with adaptive quality for weaker machines.
-- Separates rendering from frame inference so camera movement stays responsive while frames are being analyzed.
+- Renders a dense point-field relief by default, with adaptive quality for weaker machines.
+- Separates rendering from frame inference so dragging and orbiting the 3D scene stays responsive while frames are being analyzed.
+- Saves shareable URL hashes for repeatable artwork states when the source is blank or demo media.
+- Provides a performance mode that hides controls for projection, recording, and installation tests.
+- Includes an experimental emoji mosaic mode for testing symbolic micro-texture without replacing the 3D relief plane as the primary material.
 - Provides presets such as Ghost Relief, LiDAR Scan, Topographic, Soft Hologram, Depth Sculpture, and Glitch Field.
-- Captures PNG screenshots and short canvas recordings, preferring MP4 when the browser supports it and falling back to WebM.
+- Captures PNG screenshots and short canvas recordings with Web and Archive quality modes, preferring MP4 when the browser supports it and falling back to WebM.
 
 ## Local Development
 
@@ -53,9 +57,14 @@ Core modules:
 
 ## Portfolio Copy
 
-Relievo is a real-time browser visual instrument that turns flat media into a moving depth relief. It uses monocular image cues to lift a particle grid into 3D space, letting the viewer orbit, tune, scan, and export the result directly from the browser.
+Relievo is a real-time browser visual instrument that turns flat media into a moving depth relief. It uses monocular image cues to lift a particle grid as a 2.5D plane inside a 3D scene, letting the viewer drag, orbit, tune, scan, and export the result directly from the browser.
 
-The output is designed to feel sculptural and legible while keeping the interaction immediate: every frame can be sampled, inferred, displaced, shaded, and captured on a local browser loop.
+The output is designed to feel like a relief surface in navigable 3D space while keeping the interaction immediate: every frame can be sampled, inferred, displaced, shaded, and captured on a local browser loop.
+
+## Artwork Notes
+
+- [Relievo Manifesto](docs/vision.md)
+- [Study 001: Guitar Relief](docs/studies/001-guitar-relief.md)
 
 ## Representative Captures
 
