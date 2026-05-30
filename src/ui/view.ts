@@ -45,7 +45,7 @@ type SliderKey = keyof ViewElements["controls"];
 const sliders: Array<{ key: SliderKey; label: string; min: number; max: number; step: number }> = [
   { key: "depthScale", label: "Depth", min: 0, max: 6, step: 0.05 },
   { key: "depthGamma", label: "Gamma", min: 0.3, max: 2.4, step: 0.01 },
-  { key: "pointSize", label: "Point", min: 0.25, max: 6, step: 0.05 },
+  { key: "pointSize", label: "Point", min: 0.12, max: 6, step: 0.02 },
   { key: "pointOpacity", label: "Opacity", min: 0.05, max: 1, step: 0.01 },
   { key: "colorStrength", label: "Color", min: 0, max: 1, step: 0.01 },
   { key: "temporalSmoothing", label: "Smooth", min: 0, max: 0.96, step: 0.01 },

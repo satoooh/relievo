@@ -11,7 +11,7 @@ export class ReliefRenderer {
   private readonly controls: OrbitControls;
   private readonly geometry = new THREE.BufferGeometry();
   private readonly material = new THREE.PointsMaterial({
-    size: 0.65,
+    size: 0.28,
     map: createPointTexture(),
     alphaTest: 0.02,
     vertexColors: true,
@@ -79,7 +79,7 @@ export class ReliefRenderer {
     this.material.size = params.pointSize;
     this.material.opacity = params.pointOpacity;
     this.renderer.autoClear = true;
-    this.points.rotation.y = Math.sin((now - this.startedAt) * 0.0002) * 0.04;
+    this.points.rotation.y = 0;
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
     stats.renderFPS = stats.renderFPS;
@@ -131,7 +131,8 @@ export class ReliefRenderer {
     const image = this.sourcePixels.data;
     const aspect = this.width / this.height;
     const breathing = 1 + Math.sin((now - this.startedAt) * 0.0018) * params.breathing;
-    const introMorph = Math.min(1, ((now - this.startedAt) * params.morphSpeed) / 1800);
+    const elapsedMs = now - this.startedAt;
+    const introMorph = easeOutCubic(clamp01((elapsedMs * (0.45 + params.morphSpeed)) / 4200));
     const scan = scanThreshold(params, now - this.startedAt);
     const quantizeSteps = Math.max(0, Math.round(params.depthQuantize));
     const near = Math.min(params.nearThreshold, params.farThreshold - 0.02);
@@ -146,7 +147,9 @@ export class ReliefRenderer {
         const pixelIndex = index * 4;
         const scanAxis = scanValue(params.scanDirection, xn, yn);
         const revealed = scanAxis <= scan ? 1 : 0.08;
-        const glitch = params.glitchAmount > 0 ? pseudoNoise(x, y, now) * params.glitchAmount : 0;
+        const noise = pseudoNoise(x, y, now);
+        const staticNoise = pseudoNoise(x, y, 0);
+        const glitch = params.glitchAmount > 0 ? noise * params.glitchAmount : 0;
         let z = this.depth[index] ?? 0;
         z = Math.pow(z, params.depthGamma);
 
@@ -157,7 +160,20 @@ export class ReliefRenderer {
         const depthWindow = smoothstep(near, near + 0.04, z) * (1 - smoothstep(far - 0.04, far, z));
         const foreground = Math.min(1, z + params.foregroundBoost * z);
         const trailWave = Math.sin((now - this.startedAt) * 0.003 + x * 0.13 + y * 0.07) * params.trailAmount;
-        const displaced = (z + glitch + trailWave) * params.depthScale * params.morphAmount * introMorph * breathing * revealed;
+        const localMorph = smoothstep(
+          0,
+          1,
+          introMorph * 1.18 - scanAxis * 0.16 + z * 0.08 + staticNoise * 0.025,
+        );
+        const settledMotion = 1 + Math.sin(elapsedMs * 0.0012 + staticNoise * 2.4) * params.breathing * 0.35;
+        const displaced =
+          (z + glitch + trailWave) *
+          params.depthScale *
+          params.morphAmount *
+          localMorph *
+          breathing *
+          settledMotion *
+          revealed;
         this.positions[positionIndex] = (xn - 0.5) * aspect * 3.95;
         this.positions[positionIndex + 1] = (0.5 - yn) * 3.95;
         this.positions[positionIndex + 2] = displaced - params.depthScale * 0.45;
@@ -172,7 +188,7 @@ export class ReliefRenderer {
         const depthShade = Math.pow(z, 0.72);
         const texture = params.monochrome ? mono : (r + g + b) / 3;
         const reliefTone = depthShade * (1 - params.textureMix) + texture * params.textureMix;
-        const pointLight = reliefTone * fade * depthWindow * scanTint * params.brightness;
+        const pointLight = reliefTone * fade * depthWindow * scanTint * params.brightness * (0.38 + localMorph * 0.62);
 
         if (params.monochrome) {
           this.colors[positionIndex] = clamp01(pointLight * 0.78);
@@ -255,7 +271,7 @@ function createPointTexture(): THREE.CanvasTexture {
   if (context) {
     context.fillStyle = "rgba(255,255,255,1)";
     context.beginPath();
-    context.arc(32, 32, 12, 0, Math.PI * 2);
+    context.arc(32, 32, 5, 0, Math.PI * 2);
     context.fill();
   }
 
@@ -267,4 +283,8 @@ function createPointTexture(): THREE.CanvasTexture {
 function smoothstep(edge0: number, edge1: number, value: number): number {
   const t = Math.min(1, Math.max(0, (value - edge0) / Math.max(0.0001, edge1 - edge0)));
   return t * t * (3 - 2 * t);
+}
+
+function easeOutCubic(value: number): number {
+  return 1 - Math.pow(1 - value, 3);
 }
