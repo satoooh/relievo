@@ -25,6 +25,7 @@ export class ReliefRenderer {
   private readonly emojiQuaternion = new THREE.Quaternion();
   private readonly emojiScale = new THREE.Vector3();
   private readonly emojiPosition = new THREE.Vector3();
+  private readonly interactionUv = new THREE.Vector2(0.5, 0.5);
   private positions = new Float32Array();
   private uvs = new Float32Array();
   private previousDepths = new Float32Array();
@@ -41,6 +42,9 @@ export class ReliefRenderer {
   private frameBlendMs = 180;
   private hasFrame = false;
   private preserveTransitionPreviousFrame = false;
+  private interactionStrength = 0;
+  private interactionTargetStrength = 0;
+  private interactionLastAt = -10000;
   private sourceKind: FrameSample["sourceKind"] = "blank";
   private startedAt = performance.now();
   private sourceTransitionStartedAt = -10000;
@@ -69,6 +73,7 @@ export class ReliefRenderer {
       this.scene.add(mesh);
     }
     this.scene.add(new THREE.AmbientLight(0xffffff, 0.65));
+    this.bindPointerInteraction();
   }
 
   setFrame(sample: FrameSample, depth: Float32Array, params: ReliefParams): void {
@@ -316,6 +321,7 @@ export class ReliefRenderer {
     const elapsedMs = now - this.startedAt;
     const near = Math.min(params.nearThreshold, params.farThreshold - 0.02);
     const far = Math.max(params.farThreshold, near + 0.02);
+    this.updateInteractionStrength(now);
     this.uniforms.uBackgroundFade.value = params.backgroundFade;
     this.uniforms.uBlankSource.value = this.sourceKind === "blank" ? 1 : 0;
     this.uniforms.uBrightness.value = params.brightness;
@@ -330,6 +336,9 @@ export class ReliefRenderer {
     this.uniforms.uForegroundBoost.value = params.foregroundBoost;
     this.uniforms.uGlitchAmount.value = params.glitchAmount;
     this.uniforms.uIntroMorph.value = easeOutCubic(clamp01((elapsedMs * (0.45 + params.morphSpeed)) / 4200));
+    this.uniforms.uInteractionAspect.value = this.width > 0 && this.height > 0 ? this.width / this.height : 1;
+    this.uniforms.uInteractionStrength.value = this.interactionStrength;
+    this.uniforms.uInteractionUv.value.copy(this.interactionUv);
     this.uniforms.uMonochrome.value = params.monochrome ? 1 : 0;
     this.uniforms.uMorphAmount.value = params.morphAmount;
     this.uniforms.uNearThreshold.value = near;
@@ -341,6 +350,42 @@ export class ReliefRenderer {
     this.uniforms.uSourceTransition.value = easeInOutCubic(clamp01((now - this.sourceTransitionStartedAt) / 1800));
     this.uniforms.uTextureMix.value = params.textureMix;
     this.uniforms.uTrailAmount.value = params.trailAmount;
+  }
+
+  private bindPointerInteraction(): void {
+    this.canvas.addEventListener("pointermove", (event) => {
+      const rect = this.canvas.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) {
+        return;
+      }
+
+      this.interactionUv.set(
+        clamp01((event.clientX - rect.left) / rect.width),
+        clamp01((event.clientY - rect.top) / rect.height),
+      );
+      this.interactionLastAt = performance.now();
+      this.interactionTargetStrength = event.buttons ? 1 : 0.54;
+    });
+    this.canvas.addEventListener("pointerdown", () => {
+      this.interactionLastAt = performance.now();
+      this.interactionTargetStrength = 1;
+    });
+    this.canvas.addEventListener("pointerup", () => {
+      this.interactionTargetStrength = 0.46;
+    });
+    this.canvas.addEventListener("pointerleave", () => {
+      this.interactionTargetStrength = 0;
+    });
+  }
+
+  private updateInteractionStrength(now: number): void {
+    if (now - this.interactionLastAt > 1800) {
+      this.interactionTargetStrength = 0;
+    }
+    this.interactionStrength += (this.interactionTargetStrength - this.interactionStrength) * 0.14;
+    if (this.interactionStrength < 0.001) {
+      this.interactionStrength = 0;
+    }
   }
 
   private resize(renderScale: number): void {
@@ -538,6 +583,9 @@ function createReliefUniforms() {
     uForegroundBoost: { value: 0.72 },
     uGlitchAmount: { value: 0.01 },
     uIntroMorph: { value: 0 },
+    uInteractionAspect: { value: 1 },
+    uInteractionStrength: { value: 0 },
+    uInteractionUv: { value: new THREE.Vector2(0.5, 0.5) },
     uMonochrome: { value: 0 },
     uMorphAmount: { value: 1 },
     uNearThreshold: { value: 0 },
@@ -576,6 +624,9 @@ const vertexShader = `
   uniform float uForegroundBoost;
   uniform float uGlitchAmount;
   uniform float uIntroMorph;
+  uniform float uInteractionAspect;
+  uniform float uInteractionStrength;
+  uniform vec2 uInteractionUv;
   uniform float uMonochrome;
   uniform float uMorphAmount;
   uniform float uNearThreshold;
@@ -640,13 +691,19 @@ const vertexShader = `
     float breathing = 1.0 + sin(uElapsed * 0.0018) * uBreathing;
     float settledMotion = 1.0 + sin(uElapsed * 0.0012 + aSeed * 2.4 * (1.0 - uBlankSource)) * uBreathing * mix(0.35, 0.16, uBlankSource);
     float glitch = animatedNoise * uGlitchAmount;
-    float displaced = (z + glitch + trailWave) * uDepthScale * uMorphAmount * localMorph * breathing * settledMotion * revealed;
+    vec2 interactionDelta = vec2((aUv.x - uInteractionUv.x) * uInteractionAspect, aUv.y - uInteractionUv.y);
+    float interactionDistance = length(interactionDelta);
+    float interactionField = exp(-interactionDistance * 16.0) * uInteractionStrength;
+    float interactionRipple = sin(interactionDistance * 52.0 - uElapsed * 0.018) * 0.045 * interactionField;
+    float interactionLift = (interactionField * 0.055 + interactionRipple) * (0.62 + z * 0.72);
+    float displaced = (z + glitch + trailWave + interactionLift) * uDepthScale * uMorphAmount * localMorph * breathing * settledMotion * revealed;
 
     vec3 transformed = position;
     transformed.xy += vec2(
       sin(aSeed * 4.7 + uElapsed * 0.0011),
       cos(aSeed * 3.9 + uElapsed * 0.0013)
     ) * abs(depthDelta) * springArc * uParticleInertia * 0.018;
+    transformed.xy += normalize(interactionDelta + vec2(0.0001)) * interactionField * 0.035;
     transformed.z = displaced - uDepthScale * 0.45;
 
     float mono = dot(sourceColor, vec3(0.333333));
@@ -665,7 +722,7 @@ const vertexShader = `
     vAlpha = clamp(depthWindow * uPointOpacity * (0.18 + localMorph * 0.82), 0.0, 1.0);
 
     vec4 mvPosition = modelViewMatrix * vec4(transformed, 1.0);
-    gl_PointSize = max(1.15, uPointSize * uViewportHeight * uPixelRatio * 0.108 / max(0.1, -mvPosition.z));
+    gl_PointSize = max(1.15, uPointSize * uViewportHeight * uPixelRatio * 0.108 / max(0.1, -mvPosition.z)) * (1.0 + interactionField * 0.32);
     gl_Position = projectionMatrix * mvPosition;
   }
 `;

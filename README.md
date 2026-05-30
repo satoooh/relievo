@@ -2,7 +2,7 @@
 
 Relievo is a browser-based depth relief instrument for turning images, video, and webcam input into live 2.5D surfaces in a 3D scene.
 
-It runs media sampling, browser-local neural depth inference, WebGL point rendering, live tuning, and capture export directly in the browser.
+It runs media sampling, Depth Anything V2 inference, WebGL point rendering, live tuning, and capture export directly in the browser.
 
 ## Demo
 
@@ -14,7 +14,7 @@ It runs media sampling, browser-local neural depth inference, WebGL point render
 
 - Starts from a quiet blank point field that can bend into image, video, or webcam-driven relief.
 - Loads a still image, local video file, webcam stream, or built-in demo frame.
-- Estimates a depth-like relief map in a Web Worker with selectable heuristic, Depth Anything V2, and Apple Depth Pro Sharp backends.
+- Estimates a depth-like relief map in a Web Worker with selectable heuristic and Depth Anything V2 backends.
 - Renders a dense point-field relief by default, with adaptive quality for weaker machines.
 - Separates rendering from frame inference so dragging and orbiting the 3D scene stays responsive while frames are being analyzed.
 - Saves shareable URL hashes for repeatable artwork states when the source is blank or demo media.
@@ -44,7 +44,7 @@ npm run preview
 
 ## Implementation Notes
 
-The current build keeps a deterministic heuristic depth estimator for fast offline startup, adds a Transformers.js Depth Anything V2 path for real-time monocular depth, and exposes Apple Depth Pro Sharp as a heavier experimental backend for sharper boundary studies. All estimators run behind a worker-backed `DepthPipeline` boundary under `src/depth`, so the renderer and UI can switch backends without changing their contract.
+The current build keeps a deterministic heuristic depth estimator for fast offline startup, and adds a Transformers.js Depth Anything V2 path for higher-quality monocular depth. Both estimators run behind a worker-backed `DepthPipeline` boundary under `src/depth`, so the renderer and UI can switch backends without changing their contract.
 
 Core modules:
 
@@ -65,6 +65,7 @@ The output is designed to feel like a relief surface in navigable 3D space while
 
 - [Relievo Manifesto](docs/vision.md)
 - [Study 001: Guitar Relief](docs/studies/001-guitar-relief.md)
+- [Study 002: Interactive Point-Field Directions](docs/studies/002-interactive-point-field-directions.md)
 
 ## Representative Captures
 

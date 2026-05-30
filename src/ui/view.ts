@@ -220,6 +220,7 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
           </summary>
           <div class="grid gap-1 px-2 pb-2 text-[11px] leading-5 text-white/58">
             <div><kbd class="ui-kbd">Drag</kbd> orbit the relief plane</div>
+            <div><kbd class="ui-kbd">Move</kbd> disturb nearby particles</div>
             <div><kbd class="ui-kbd">Wheel</kbd> zoom through the 3D space</div>
             <div><kbd class="ui-kbd">Right drag</kbd> pan the view</div>
             <div><kbd class="ui-kbd">Double-click</kbd> hide the interface</div>
