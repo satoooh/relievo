@@ -44,6 +44,7 @@ let currentDemoSceneId = initialShareState.demoSceneId ?? initialDemoSceneId;
 let source: MediaSourceHandle = initialShareState.sourceKind === "demo" ? createDemoSource(currentDemoSceneId) : createBlankSource();
 let lastStatsSync = 0;
 let lastQualityAdaptAt = 0;
+let qualityAdaptAfter = performance.now() + 3200;
 let currentPresetId = initialShareState.presetId ?? initialPresetId;
 let performanceMode = initialShareState.performanceMode ?? false;
 let emojiMode = initialShareState.emojiMode ?? false;
@@ -218,6 +219,7 @@ async function setSource(next: MediaSourceHandle): Promise<void> {
   source = next;
   smoother.reset();
   renderer.restartIntro();
+  qualityAdaptAfter = performance.now() + 3200;
   stats.sourceKind = source.kind;
   startInferenceLoop(true);
   preloadDepthBackend();
@@ -232,6 +234,7 @@ function applyPreset(id: string): void {
   elements.presetSelect.value = currentPresetId;
   smoother.reset();
   renderer.restartIntro();
+  qualityAdaptAfter = performance.now() + 3200;
   startInferenceLoop(true);
   preloadDepthBackend();
   sync();
@@ -414,7 +417,7 @@ function adaptQuality(): void {
 }
 
 function adaptRenderQuality(now: number): void {
-  if (!params.adaptiveQuality || stats.renderFPS <= 0 || now - lastQualityAdaptAt < 700) {
+  if (!params.adaptiveQuality || stats.loading || stats.renderFPS <= 0 || now < qualityAdaptAfter || now - lastQualityAdaptAt < 700) {
     return;
   }
 
