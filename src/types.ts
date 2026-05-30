@@ -6,7 +6,7 @@ export type DemoSceneId = "studio" | "mountain" | "product" | "alley" | "motion-
 
 export type QualityMode = "visual" | "balanced" | "quality";
 
-export type ArtMode = "relief" | "memory" | "contour" | "section" | "phase";
+export type ArtMode = "relief" | "memory" | "veil";
 
 export type DepthBackendSelection =
   | "worker-cpu-heuristic"

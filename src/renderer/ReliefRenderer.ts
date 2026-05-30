@@ -228,7 +228,7 @@ export class ReliefRenderer {
       const motion = this.hasFrame
         ? clamp01(Math.abs(nextDepth - (this.previousDepths[index] ?? nextDepth)) * 4.8 + colorDelta * 0.55)
         : 0;
-      this.motionEnergy[index] = Math.max((this.motionEnergy[index] ?? 0) * 0.78, motion);
+      this.motionEnergy[index] = Math.max((this.motionEnergy[index] ?? 0) * 0.86, motion);
       this.depths[index] = nextDepth;
       this.colors[colorIndex] = nextRed;
       this.colors[colorIndex + 1] = nextGreen;
@@ -451,12 +451,8 @@ function artModeIndex(mode: ReliefParams["artMode"]): number {
   switch (mode) {
     case "memory":
       return 1;
-    case "contour":
+    case "veil":
       return 2;
-    case "section":
-      return 3;
-    case "phase":
-      return 4;
     case "relief":
     default:
       return 0;
@@ -733,18 +729,14 @@ const vertexShader = `
     float interactionRipple = sin(interactionDistance * 52.0 - uElapsed * 0.018) * 0.045 * interactionField;
     float interactionLift = (interactionField * 0.055 + interactionRipple) * (0.62 + z * 0.72);
     float memoryMode = 1.0 - step(0.5, abs(uArtMode - 1.0));
-    float contourMode = 1.0 - step(0.5, abs(uArtMode - 2.0));
-    float sectionMode = 1.0 - step(0.5, abs(uArtMode - 3.0));
-    float phaseMode = 1.0 - step(0.5, abs(uArtMode - 4.0));
-    float motionGlow = smoothstep(0.035, 0.72, aMotion) * memoryMode;
-    float contourLine = (1.0 - smoothstep(0.012, 0.055, abs(fract(z * 16.0 + 0.02 * sin(uElapsed * 0.0018)) - 0.5))) * contourMode;
-    float sectionCenter = fract(uElapsed * 0.00013);
-    float sectionDistance = abs(axis - sectionCenter);
-    sectionDistance = min(sectionDistance, 1.0 - sectionDistance);
-    float sectionSlice = (1.0 - smoothstep(0.018, 0.085, sectionDistance)) * sectionMode;
-    float phaseBand = floor(z * 10.0);
-    float phaseWave = sin(uElapsed * 0.0042 + phaseBand * 0.84 + aSeed * 0.45) * 0.052 * phaseMode;
-    float modeLift = motionGlow * 0.075 + contourLine * 0.028 + sectionSlice * 0.085 + phaseWave * (0.55 + z);
+    float veilMode = 1.0 - step(0.5, abs(uArtMode - 2.0));
+    float motionGlow = smoothstep(0.025, 0.64, aMotion) * memoryMode;
+    float memoryRail = pow(motionGlow, 0.72);
+    float memoryShimmer = (0.5 + 0.5 * sin(uElapsed * 0.009 + aSeed * 9.0 + z * 12.0)) * memoryRail;
+    float memoryWake = sin(uElapsed * 0.004 + aUv.x * 42.0 - aUv.y * 31.0 + aSeed * 3.0) * 0.032 * memoryRail;
+    float veilSurface = smoothstep(0.22, 0.86, z) * depthWindow * veilMode;
+    float veilWeave = (0.5 + 0.5 * sin(aUv.x * 210.0 + aUv.y * 138.0 + aSeed * 5.0)) * veilSurface;
+    float modeLift = memoryRail * 0.086 + memoryWake * (0.45 + z * 0.72) + veilSurface * 0.035;
     float displaced = (z + glitch + trailWave + interactionLift + modeLift) * uDepthScale * uMorphAmount * localMorph * breathing * settledMotion * revealed;
 
     vec3 transformed = position;
@@ -756,7 +748,11 @@ const vertexShader = `
     transformed.xy += vec2(
       sin(aSeed * 6.1 + uElapsed * 0.0025),
       cos(aSeed * 5.4 + uElapsed * 0.0021)
-    ) * (motionGlow * 0.026 + sectionSlice * 0.012 + phaseMode * abs(phaseWave) * 0.06);
+    ) * (memoryRail * 0.038 + memoryShimmer * 0.012);
+    transformed.xy += vec2(
+      sin(aSeed * 8.0),
+      cos(aSeed * 7.0)
+    ) * veilSurface * 0.006;
     transformed.z = displaced - uDepthScale * 0.45;
 
     float mono = dot(sourceColor, vec3(0.333333));
@@ -769,19 +765,21 @@ const vertexShader = `
     float blankBoost = mix(1.0, 1.42, uBlankSource);
     float pointLightFloor = depthWindow * scanTint * uBrightness * (1.0 - uBlankSource) * 0.16;
     float pointLight = max(pointLightFloor, reliefTone * fade * depthWindow * scanTint * uBrightness * blankBoost * (0.38 + localMorph * 0.62));
-    pointLight += depthWindow * uBrightness * (motionGlow * 0.72 + contourLine * 0.38 + sectionSlice * 0.62 + phaseMode * abs(phaseWave) * 2.4);
+    pointLight += depthWindow * uBrightness * (memoryRail * 0.86 + memoryShimmer * 0.42);
     vec3 litColor = colorChannel(displayColor * pointLight, uColorStrength);
-    litColor = mix(litColor, litColor + vec3(0.30, 0.68, 0.78) * motionGlow, memoryMode);
-    litColor = mix(litColor, litColor + vec3(0.72, 0.86, 0.52) * contourLine, contourMode);
-    litColor = mix(litColor, litColor + vec3(0.78, 0.95, 1.0) * sectionSlice, sectionMode);
-    litColor = mix(litColor, litColor + vec3(0.42, 0.55, 0.92) * abs(phaseWave) * 2.0, phaseMode);
+    vec3 memoryTint = vec3(0.24, 0.78, 0.88) * memoryRail + vec3(0.92, 0.86, 0.52) * memoryShimmer * 0.34;
+    litColor = mix(litColor, litColor + memoryTint, memoryMode);
+    vec3 veilTone = mix(sourceColor * (0.54 + pointLight * 0.5), vec3(0.92, 0.94, 0.9), 0.78 + veilWeave * 0.16);
+    litColor = mix(litColor, veilTone, veilMode);
     vec3 monoColor = vec3(pointLight * 0.78, pointLight * 0.82, pointLight * 0.9);
     vColor = mix(litColor, monoColor, step(0.5, uMonochrome));
-    vAlpha = clamp(depthWindow * uPointOpacity * (0.18 + localMorph * 0.82 + motionGlow * 0.28 + contourLine * 0.18 + sectionSlice * 0.22), 0.0, 1.0);
+    float baseAlpha = clamp(depthWindow * uPointOpacity * (0.18 + localMorph * 0.82 + memoryRail * 0.38), 0.0, 1.0);
+    float veilAlpha = clamp((0.035 + veilSurface * (0.42 + veilWeave * 0.22)) * uPointOpacity * (0.7 + z * 0.5), 0.0, 0.78);
+    vAlpha = mix(baseAlpha, veilAlpha, veilMode);
 
     vec4 mvPosition = modelViewMatrix * vec4(transformed, 1.0);
     gl_PointSize = max(1.15, uPointSize * uViewportHeight * uPixelRatio * 0.108 / max(0.1, -mvPosition.z)) *
-      (1.0 + interactionField * 0.32 + motionGlow * 0.42 + contourLine * 0.2 + sectionSlice * 0.32 + phaseMode * abs(phaseWave) * 1.8);
+      (1.0 + interactionField * 0.32 + memoryRail * 0.52 + memoryShimmer * 0.18 + veilSurface * 0.95 + veilWeave * 0.25);
     gl_Position = projectionMatrix * mvPosition;
   }
 `;

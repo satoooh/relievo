@@ -16,38 +16,36 @@ Relievo should stay a 2.5D relief plane in navigable 3D space. The stronger dire
 
    Pointer movement creates a local field over the relief plane. Nearby particles lift, ripple, and slightly spread while the viewer orbits. This makes the browser demo immediately tactile without changing the source media or the 2.5D premise.
 
-2. Phase-locked particles
-
-   Every point has a seed phase, but similar depth bands can synchronize into soft waves. This can make still images feel alive without becoming generic noise.
-
-3. Depth contours
-
-   Add optional contour bands that are derived from the depth map and rendered as subtle brightness or point-size strata. This would make the relief read like a topographic drawing while preserving the image.
-
-4. Local memory trails
+2. Local memory trails
 
    Instead of a global trail smear, store recent depth deltas or motion energy and let only recently changed regions glow or lag. This is especially strong for webcam hands, faces, and product motion.
 
-5. Section scan
+3. Phase-locked particles
 
-   A moving slice can temporarily reveal a thin cross-section of the relief. The full image remains visible, but the scan exposes the structure as if the viewer is inspecting a spatial instrument.
+   Every point has a seed phase, but similar depth bands can synchronize into soft waves. This can make still images feel alive without becoming generic noise.
 
-6. Micro material layer
+4. Volumetric veil
 
-   Emoji or glyph replacement should stay sparse and scale-aware. It works best as an inspection layer at close camera distances, not as the default surface.
+   Depthkit-like partial video suggests a translucent point veil: source color remains visible, but foreground depth lifts into a white dotted surface. This is useful when the work should feel more like spatial video than a pure relief surface.
+
+5. Semantic pressure fields
+
+   MediaPipe hand or face landmarks could become local attractors, cuts, or pressure points over the same relief plane. This should be treated as a force field on the existing material, not as a separate recognition UI.
+
+## Parked Ideas
+
+Depth contours, section scans, and broad phase waves were implemented as early studies, but they weakened the source image or felt less specific than the memory direction. They are parked until a stronger visual reason appears.
 
 ## Implemented Note
 
 The first step was an interaction field: moving or dragging over the canvas disturbs nearby particles in the shader. It is intentionally modest so the source image still reads, but it gives the point field a material response that belongs to the browser artwork.
 
-The next step is a study mode switcher:
+The current study switcher is intentionally narrow:
 
 - Relief field: the canonical readable surface.
-- Memory trails: recent local motion and depth changes glow, lift, and drift slightly.
-- Depth contours: topographic bands emphasize depth strata without replacing the image.
-- Section scan: a moving slice inspects the relief surface as a spatial instrument.
-- Phase waves: points in similar depth bands move with subtly synchronized phase.
+- Memory trails: recent local motion and depth changes leave a brighter, drifting particle afterimage.
+- Volumetric veil: a Depthkit-inspired translucent dot surface over the source, biased toward bright white foreground structure.
 
 These are shader and buffer-level studies, not separate presets. They keep the same media source and the same 2.5D plane so each mode can be judged as a material treatment rather than a new scene.
 
-MediaPipe should be introduced only if one of these modes benefits from semantic control. The likely first use is a hand or face force field: detected landmarks would become local attractors, cuts, or pressure points over the depth surface. That keeps the artwork in the Relievo material language while making webcam interaction more performative.
+MediaPipe should be introduced only if memory trails or the interaction field benefit from semantic control. The likely first use is a hand or face force field: detected landmarks would become local attractors, cuts, or pressure points over the depth surface. That keeps the artwork in the Relievo material language while making webcam interaction more performative.

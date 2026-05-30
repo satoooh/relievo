@@ -89,23 +89,13 @@ export function decodeShareableState(hash: string): Partial<ShareableState> {
   }
 
   const artMode = query.get("art");
-  if (artMode === "relief" || artMode === "memory" || artMode === "contour" || artMode === "section" || artMode === "phase") {
+  if (artMode === "relief" || artMode === "memory" || artMode === "veil") {
     params.artMode = artMode;
   }
 
   const qualityMode = query.get("qualityMode");
   if (qualityMode === "visual" || qualityMode === "balanced" || qualityMode === "quality") {
     params.qualityMode = qualityMode;
-  }
-
-  const scanDirection = query.get("scanDir");
-  if (
-    scanDirection === "left-right" ||
-    scanDirection === "right-left" ||
-    scanDirection === "top-bottom" ||
-    scanDirection === "bottom-top"
-  ) {
-    params.scanDirection = scanDirection;
   }
 
   return {

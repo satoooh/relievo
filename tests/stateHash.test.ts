@@ -13,7 +13,7 @@ describe("shareable state hash", () => {
       sourceKind: "demo",
       params: {
         ...defaultParams,
-        artMode: "phase",
+        artMode: "veil",
         particleInertia: 0.52,
         pointSize: 0.22,
         qualityMode: "visual",
@@ -31,18 +31,10 @@ describe("shareable state hash", () => {
       sourceKind: "demo",
     });
     expect(decoded.params).toMatchObject({
-      artMode: "phase",
+      artMode: "veil",
       particleInertia: 0.52,
       pointSize: 0.22,
       qualityMode: "visual",
-    });
-  });
-
-  it("still accepts legacy scan direction links", () => {
-    const decoded = decodeShareableState("#scanDir=top-bottom");
-
-    expect(decoded.params).toMatchObject({
-      scanDirection: "top-bottom",
     });
   });
 

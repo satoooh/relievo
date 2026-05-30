@@ -123,10 +123,8 @@ const sliders: Array<{ key: SliderKey; label: string; min: number; max: number; 
 
 const artModeOptions: Array<{ id: ArtMode; label: string; tooltip: string }> = [
   { id: "relief", label: "Relief field", tooltip: "Canonical readable point relief" },
-  { id: "memory", label: "Memory trails", tooltip: "Glow recent local motion and depth changes" },
-  { id: "contour", label: "Depth contours", tooltip: "Topographic depth bands over the point field" },
-  { id: "section", label: "Section scan", tooltip: "A moving slice inspects the relief surface" },
-  { id: "phase", label: "Phase waves", tooltip: "Depth bands synchronize into soft waves" },
+  { id: "memory", label: "Memory trails", tooltip: "Trace local motion and depth changes as a particle afterimage" },
+  { id: "veil", label: "Volumetric veil", tooltip: "Depthkit-like translucent point veil over the source" },
 ];
 
 export function createView(root: HTMLElement, params: ReliefParams): ViewElements {
