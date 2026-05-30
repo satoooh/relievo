@@ -146,6 +146,9 @@ export class ReliefRenderer {
     this.colors = new Float32Array(count * 3);
     this.seeds = new Float32Array(count);
     const aspect = this.width / this.height;
+    const maxPlaneSize = 4.2;
+    const planeWidth = aspect >= 1 ? maxPlaneSize : maxPlaneSize * aspect;
+    const planeHeight = aspect >= 1 ? maxPlaneSize / aspect : maxPlaneSize;
 
     for (let y = 0; y < this.height; y += 1) {
       const yn = this.height <= 1 ? 0 : y / (this.height - 1);
@@ -154,8 +157,8 @@ export class ReliefRenderer {
         const index = y * this.width + x;
         const positionIndex = index * 3;
         const uvIndex = index * 2;
-        this.positions[positionIndex] = (xn - 0.5) * aspect * 3.95;
-        this.positions[positionIndex + 1] = (0.5 - yn) * 3.95;
+        this.positions[positionIndex] = (xn - 0.5) * planeWidth;
+        this.positions[positionIndex + 1] = (0.5 - yn) * planeHeight;
         this.positions[positionIndex + 2] = 0;
         this.uvs[uvIndex] = xn;
         this.uvs[uvIndex + 1] = yn;

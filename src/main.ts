@@ -1,7 +1,7 @@
 import "./style.css";
 import { defaultParams, qualityLabel } from "./params";
 import { DepthPipeline } from "./depth/DepthPipeline";
-import { depthBackendLabel, isDepthAnythingBackend, isHighCostDepthBackend } from "./depth/depthBackends";
+import { depthBackendLabel, isDepthAnythingBackend } from "./depth/depthBackends";
 import { TemporalSmoother } from "./depth/smoothing";
 import { CanvasRecorder, downloadCanvasPNG, timestamp } from "./export/capture";
 import { FrameSampler } from "./media/frameSampler";
@@ -39,18 +39,22 @@ const gui = createAdvancedGui(params, () => sync());
 const minimumVisualFPS = 24;
 const targetVisualFPS = 30;
 const idealVisualFPS = 58;
+const defaultSampleAspect = defaultParams.gridWidth / defaultParams.gridHeight;
 
 let currentDemoSceneId = initialShareState.demoSceneId ?? initialDemoSceneId;
 let source: MediaSourceHandle = initialShareState.sourceKind === "demo" ? createDemoSource(currentDemoSceneId) : createBlankSource();
 let lastStatsSync = 0;
 let lastQualityAdaptAt = 0;
+let lastPreviewRenderAt = 0;
 let qualityAdaptAfter = performance.now() + 3200;
+let currentQuality = qualityLabel(params);
 let currentPresetId = initialShareState.presetId ?? initialPresetId;
 let performanceMode = initialShareState.performanceMode ?? false;
 let emojiMode = initialShareState.emojiMode ?? false;
 let exportQuality: ExportQuality = initialShareState.exportQuality ?? "archive";
 let inferenceTimer = 0;
 let inferenceGeneration = 0;
+let lastInferenceStartedAt = 0;
 let clearMessageTimer = 0;
 let forcedInferenceRetryTimer = 0;
 let shareStateTimer = 0;
@@ -244,7 +248,7 @@ function animationLoop(now: number): void {
   stats.renderFPS = renderMeter.tick(now);
   stats.recording = recorder.recording;
   adaptRenderQuality(now);
-  renderInputPreview();
+  renderInputPreview(now);
   renderer.render(params, stats, emojiMode);
 
   if (now - lastStatsSync > 160) {
@@ -280,7 +284,8 @@ function scheduleInference(generation: number): void {
     return;
   }
 
-  const interval = inferenceIntervalMs();
+  const elapsedSinceStart = lastInferenceStartedAt === 0 ? 0 : performance.now() - lastInferenceStartedAt;
+  const interval = Math.max(0, inferenceIntervalMs() - elapsedSinceStart);
   inferenceTimer = window.setTimeout(() => {
     const element = source.element;
     if (
@@ -333,12 +338,10 @@ async function runInference(force: boolean, generation: number): Promise<boolean
     return false;
   }
 
-  adaptQuality();
-
-  const sample =
-    source.kind === "blank"
-      ? sampler.sample(element, blankGridSize(), blankGridSize(), source.kind)
-      : sampler.sample(element, dynamicSampleSize(), dynamicSampleSize(), source.kind);
+  const dimensions = source.kind === "blank"
+    ? blankGridDimensions()
+    : dynamicSampleDimensions();
+  const sample = sampler.sample(element, dimensions.width, dimensions.height, source.kind);
   if (source.kind === "blank") {
     prepareBlankPointSample(sample);
     const depth = createBlankDepth(sample, performance.now());
@@ -347,7 +350,8 @@ async function runInference(force: boolean, generation: number): Promise<boolean
     stats.inferenceMs = 0;
     stats.inferenceFPS = inferenceMeter.tick();
     stats.sourceKind = source.kind;
-    stats.quality = `${sample.width}x${sample.height} / ${Math.round(params.renderScale * 100)}%`;
+    currentQuality = `${sample.width}x${sample.height} / ${Math.round(params.renderScale * 100)}%`;
+    stats.quality = currentQuality;
     stats.pipeline = "procedural blank point field";
     return true;
   }
@@ -355,6 +359,8 @@ async function runInference(force: boolean, generation: number): Promise<boolean
   if (depthPipeline.busy) {
     return false;
   }
+
+  lastInferenceStartedAt = performance.now();
 
   if (isDepthAnythingBackend(params.depthBackend) && stats.backend !== params.depthBackend) {
     setMessage(`${depthBackendLabel(params.depthBackend)} is loading. First run downloads the ONNX model.`);
@@ -392,28 +398,10 @@ async function runInference(force: boolean, generation: number): Promise<boolean
   stats.inferenceMs = result.inferenceMs;
   stats.inferenceFPS = inferenceMeter.tick();
   stats.sourceKind = source.kind;
-  stats.quality = qualityLabel(params);
+  currentQuality = `${sample.width}x${sample.height} / ${Math.round(params.renderScale * 100)}%`;
+  stats.quality = currentQuality;
   stats.pipeline = pipelineLabel(result.backend);
   return true;
-}
-
-function adaptQuality(): void {
-  if (!params.adaptiveQuality) {
-    return;
-  }
-
-  if (stats.renderFPS > 0 && stats.renderFPS < minimumVisualFPS && params.gridWidth > 160) {
-    params.gridWidth = 176;
-    params.gridHeight = 176;
-    params.renderScale = Math.min(params.renderScale, 0.72);
-    params.inferenceFPS = Math.min(params.inferenceFPS, 8);
-    smoother.reset();
-  } else if (stats.renderFPS > idealVisualFPS && params.gridWidth < defaultParams.gridWidth) {
-    params.gridWidth = defaultParams.gridWidth;
-    params.gridHeight = defaultParams.gridHeight;
-    params.renderScale = Math.max(params.renderScale, 1);
-    smoother.reset();
-  }
 }
 
 function adaptRenderQuality(now: number): void {
@@ -424,18 +412,14 @@ function adaptRenderQuality(now: number): void {
   lastQualityAdaptAt = now;
   if (stats.renderFPS < minimumVisualFPS) {
     params.renderScale = Math.max(0.58, Number((params.renderScale - 0.12).toFixed(2)));
-    params.gridWidth = Math.max(144, Math.round(params.gridWidth * 0.72));
-    params.gridHeight = params.gridWidth;
-    params.inferenceFPS = Math.max(3, Math.min(params.inferenceFPS, source.kind === "blank" ? 18 : 6));
+    resizeInferenceGrid(Math.max(160, Math.round(params.gridWidth * 0.78)));
     smoother.reset();
     return;
   }
 
   if (stats.renderFPS < targetVisualFPS) {
     params.renderScale = Math.max(0.68, Number((params.renderScale - 0.06).toFixed(2)));
-    params.gridWidth = Math.max(176, Math.round(params.gridWidth * 0.84));
-    params.gridHeight = params.gridWidth;
-    params.inferenceFPS = Math.max(4, Math.min(params.inferenceFPS, source.kind === "blank" ? 20 : 8));
+    resizeInferenceGrid(Math.max(192, Math.round(params.gridWidth * 0.9)));
     smoother.reset();
     return;
   }
@@ -448,7 +432,7 @@ function adaptRenderQuality(now: number): void {
 function sync(): void {
   stats.recording = recorder.recording;
   stats.recordingSupported = CanvasRecorder.isSupported(elements.canvas);
-  stats.quality = qualityLabel(params);
+  stats.quality = currentQuality;
   syncView(elements, params, stats, { emojiMode, exportQuality, performanceMode });
 }
 
@@ -481,16 +465,7 @@ function pipelineLabel(backend: RuntimeStats["backend"]): string {
 }
 
 function inferenceIntervalMs(): number {
-  const requested = 1000 / Math.max(1, params.inferenceFPS);
-  if (source.kind === "blank") {
-    return requested;
-  }
-
-  if (isHighCostDepthBackend(params.depthBackend)) {
-    return Math.max(requested, 320);
-  }
-
-  return requested;
+  return 1000 / Math.max(1, params.inferenceFPS);
 }
 
 function preloadDepthBackend(): void {
@@ -510,7 +485,7 @@ function preloadDepthBackend(): void {
     }
 
     const backend = params.depthBackend;
-    const sample = sampler.sample(element, 192, 192, source.kind);
+    const sample = sampler.sample(element, 256, 144, source.kind);
     void depthPipeline
       .estimate(sample, backend)
       .then(() => {
@@ -571,13 +546,26 @@ function createBlankDepth(sample: FrameSample, now: number): Float32Array {
   return depth;
 }
 
-function blankGridSize(): number {
-  return Math.min(220, Math.max(160, Math.round(params.gridWidth * 0.42)));
+function blankGridDimensions(): { width: number; height: number } {
+  const width = Math.min(240, Math.max(180, Math.round(params.gridWidth * 0.5)));
+  return { width, height: Math.max(100, Math.round(width / sampleAspect())) };
 }
 
-function dynamicSampleSize(): number {
-  const sourceLimit = source.kind === "webcam" || source.kind === "video" ? 320 : 384;
-  return Math.min(sourceLimit, Math.max(160, params.gridWidth));
+function dynamicSampleDimensions(): { width: number; height: number } {
+  const sourceLimit = source.kind === "webcam" || source.kind === "video" ? defaultParams.gridWidth : 512;
+  const width = Math.min(sourceLimit, Math.max(160, params.gridWidth));
+  return { width, height: Math.max(90, Math.round(width / sampleAspect())) };
+}
+
+function resizeInferenceGrid(width: number): void {
+  const aspect = sampleAspect();
+  params.gridWidth = width;
+  params.gridHeight = Math.max(90, Math.round(width / aspect));
+}
+
+function sampleAspect(): number {
+  const aspect = params.gridWidth / Math.max(1, params.gridHeight);
+  return Number.isFinite(aspect) && aspect > 0 ? aspect : defaultSampleAspect;
 }
 
 function prepareBlankPointSample(sample: FrameSample): void {
@@ -599,7 +587,11 @@ function prepareBlankPointSample(sample: FrameSample): void {
   }
 }
 
-function renderInputPreview(): void {
+function renderInputPreview(now: number): void {
+  if (performanceMode || now - lastPreviewRenderAt < previewIntervalMs()) {
+    return;
+  }
+
   const element = source.element;
   if (!element) {
     return;
@@ -608,6 +600,8 @@ function renderInputPreview(): void {
   if (source.kind !== "image" && "readyState" in element && element.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
     return;
   }
+
+  lastPreviewRenderAt = now;
 
   const canvas = elements.inputPreviewCanvas;
   const rect = canvas.getBoundingClientRect();
@@ -628,6 +622,14 @@ function renderInputPreview(): void {
   context.fillStyle = "#050607";
   context.fillRect(0, 0, width, height);
   drawCover(context, element, width, height);
+}
+
+function previewIntervalMs(): number {
+  if (source.kind === "video" || source.kind === "webcam") {
+    return 120;
+  }
+
+  return source.kind === "image" ? 500 : 180;
 }
 
 function drawCover(

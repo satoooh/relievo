@@ -13,7 +13,7 @@ export class FrameSampler {
     this.canvas.width = width;
     this.canvas.height = height;
     this.context.clearRect(0, 0, width, height);
-    const sourceRect = coverSourceRect(element);
+    const sourceRect = coverSourceRect(element, width / height);
     this.context.drawImage(
       element,
       sourceRect.x,
@@ -36,18 +36,29 @@ export class FrameSampler {
   }
 }
 
-function coverSourceRect(element: CanvasImageSource): { x: number; y: number; width: number; height: number } {
+function coverSourceRect(element: CanvasImageSource, targetAspect: number): { x: number; y: number; width: number; height: number } {
   const dimensions = sourceDimensions(element);
   if (!dimensions) {
     return { x: 0, y: 0, width: 1, height: 1 };
   }
 
-  const size = Math.min(dimensions.width, dimensions.height);
+  const sourceAspect = dimensions.width / dimensions.height;
+  if (sourceAspect > targetAspect) {
+    const width = dimensions.height * targetAspect;
+    return {
+      x: (dimensions.width - width) * 0.5,
+      y: 0,
+      width,
+      height: dimensions.height,
+    };
+  }
+
+  const height = dimensions.width / targetAspect;
   return {
-    x: (dimensions.width - size) * 0.5,
-    y: (dimensions.height - size) * 0.5,
-    width: size,
-    height: size,
+    x: 0,
+    y: (dimensions.height - height) * 0.5,
+    width: dimensions.width,
+    height,
   };
 }
 
