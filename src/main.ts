@@ -148,6 +148,22 @@ function bindEvents(): void {
     updateShareStateSoon();
   });
 
+  for (const button of elements.demoSceneButtons) {
+    button.addEventListener("click", async () => {
+      const sceneId = button.dataset.demoScene;
+      if (!sceneId || sceneId === currentDemoSceneId) {
+        await setSource(createDemoSource(currentDemoSceneId));
+        updateShareStateSoon();
+        return;
+      }
+
+      elements.demoSceneSelect.value = sceneId;
+      currentDemoSceneId = readDemoScene(elements);
+      await setSource(createDemoSource(currentDemoSceneId));
+      updateShareStateSoon();
+    });
+  }
+
   elements.screenshotButton.addEventListener("click", async () => {
     await withUiError("Screenshot could not be saved.", async () => {
       await downloadCanvasPNG(elements.canvas, `relievo-${timestamp()}`);
