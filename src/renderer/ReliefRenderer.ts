@@ -32,6 +32,7 @@ export class ReliefRenderer {
   private depths = new Float32Array();
   private previousColors = new Float32Array();
   private colors = new Float32Array();
+  private motionEnergy = new Float32Array();
   private seeds = new Float32Array();
   private width = 0;
   private height = 0;
@@ -157,6 +158,7 @@ export class ReliefRenderer {
     this.depths = new Float32Array(count);
     this.previousColors = new Float32Array(count * 3);
     this.colors = new Float32Array(count * 3);
+    this.motionEnergy = new Float32Array(count);
     this.seeds = new Float32Array(count);
     const aspect = this.width / this.height;
     const maxPlaneSize = 4.2;
@@ -185,6 +187,7 @@ export class ReliefRenderer {
     this.geometry.setAttribute("aDepth", new THREE.BufferAttribute(this.depths, 1));
     this.geometry.setAttribute("aPreviousColor", new THREE.BufferAttribute(this.previousColors, 3));
     this.geometry.setAttribute("aColor", new THREE.BufferAttribute(this.colors, 3));
+    this.geometry.setAttribute("aMotion", new THREE.BufferAttribute(this.motionEnergy, 1));
     this.geometry.setAttribute("aSeed", new THREE.BufferAttribute(this.seeds, 1));
     this.geometry.computeBoundingSphere();
     if (this.isSourceTransitionActive(performance.now())) {
@@ -214,10 +217,22 @@ export class ReliefRenderer {
     for (let index = 0; index < depth.length; index += 1) {
       const pixelIndex = index * 4;
       const colorIndex = index * 3;
-      this.depths[index] = depth[index] ?? 0;
-      this.colors[colorIndex] = (image[pixelIndex] ?? 0) / 255;
-      this.colors[colorIndex + 1] = (image[pixelIndex + 1] ?? 0) / 255;
-      this.colors[colorIndex + 2] = (image[pixelIndex + 2] ?? 0) / 255;
+      const nextDepth = depth[index] ?? 0;
+      const nextRed = (image[pixelIndex] ?? 0) / 255;
+      const nextGreen = (image[pixelIndex + 1] ?? 0) / 255;
+      const nextBlue = (image[pixelIndex + 2] ?? 0) / 255;
+      const colorDelta =
+        Math.abs(nextRed - (this.previousColors[colorIndex] ?? nextRed)) +
+        Math.abs(nextGreen - (this.previousColors[colorIndex + 1] ?? nextGreen)) +
+        Math.abs(nextBlue - (this.previousColors[colorIndex + 2] ?? nextBlue));
+      const motion = this.hasFrame
+        ? clamp01(Math.abs(nextDepth - (this.previousDepths[index] ?? nextDepth)) * 4.8 + colorDelta * 0.55)
+        : 0;
+      this.motionEnergy[index] = Math.max((this.motionEnergy[index] ?? 0) * 0.78, motion);
+      this.depths[index] = nextDepth;
+      this.colors[colorIndex] = nextRed;
+      this.colors[colorIndex + 1] = nextGreen;
+      this.colors[colorIndex + 2] = nextBlue;
     }
 
     if (!this.hasFrame) {
@@ -230,6 +245,7 @@ export class ReliefRenderer {
     this.geometry.attributes.aDepth!.needsUpdate = true;
     this.geometry.attributes.aPreviousColor!.needsUpdate = true;
     this.geometry.attributes.aColor!.needsUpdate = true;
+    this.geometry.attributes.aMotion!.needsUpdate = true;
     this.lastEmojiSync = 0;
     this.preserveTransitionPreviousFrame = false;
   }
@@ -322,6 +338,7 @@ export class ReliefRenderer {
     const near = Math.min(params.nearThreshold, params.farThreshold - 0.02);
     const far = Math.max(params.farThreshold, near + 0.02);
     this.updateInteractionStrength(now);
+    this.uniforms.uArtMode.value = artModeIndex(params.artMode);
     this.uniforms.uBackgroundFade.value = params.backgroundFade;
     this.uniforms.uBlankSource.value = this.sourceKind === "blank" ? 1 : 0;
     this.uniforms.uBrightness.value = params.brightness;
@@ -425,6 +442,22 @@ function scanDirectionIndex(direction: ReliefParams["scanDirection"]): number {
     case "bottom-top":
       return 3;
     case "left-right":
+    default:
+      return 0;
+  }
+}
+
+function artModeIndex(mode: ReliefParams["artMode"]): number {
+  switch (mode) {
+    case "memory":
+      return 1;
+    case "contour":
+      return 2;
+    case "section":
+      return 3;
+    case "phase":
+      return 4;
+    case "relief":
     default:
       return 0;
   }
@@ -569,6 +602,7 @@ function nearestEmojiMesh(red: number, green: number, blue: number): number {
 
 function createReliefUniforms() {
   return {
+    uArtMode: { value: 0 },
     uBackgroundFade: { value: 0.72 },
     uBlankSource: { value: 0 },
     uBrightness: { value: 0.72 },
@@ -608,8 +642,10 @@ const vertexShader = `
   attribute float aDepth;
   attribute vec3 aPreviousColor;
   attribute vec3 aColor;
+  attribute float aMotion;
   attribute float aSeed;
 
+  uniform float uArtMode;
   uniform float uBackgroundFade;
   uniform float uBlankSource;
   uniform float uBrightness;
@@ -696,7 +732,20 @@ const vertexShader = `
     float interactionField = exp(-interactionDistance * 16.0) * uInteractionStrength;
     float interactionRipple = sin(interactionDistance * 52.0 - uElapsed * 0.018) * 0.045 * interactionField;
     float interactionLift = (interactionField * 0.055 + interactionRipple) * (0.62 + z * 0.72);
-    float displaced = (z + glitch + trailWave + interactionLift) * uDepthScale * uMorphAmount * localMorph * breathing * settledMotion * revealed;
+    float memoryMode = 1.0 - step(0.5, abs(uArtMode - 1.0));
+    float contourMode = 1.0 - step(0.5, abs(uArtMode - 2.0));
+    float sectionMode = 1.0 - step(0.5, abs(uArtMode - 3.0));
+    float phaseMode = 1.0 - step(0.5, abs(uArtMode - 4.0));
+    float motionGlow = smoothstep(0.035, 0.72, aMotion) * memoryMode;
+    float contourLine = (1.0 - smoothstep(0.012, 0.055, abs(fract(z * 16.0 + 0.02 * sin(uElapsed * 0.0018)) - 0.5))) * contourMode;
+    float sectionCenter = fract(uElapsed * 0.00013);
+    float sectionDistance = abs(axis - sectionCenter);
+    sectionDistance = min(sectionDistance, 1.0 - sectionDistance);
+    float sectionSlice = (1.0 - smoothstep(0.018, 0.085, sectionDistance)) * sectionMode;
+    float phaseBand = floor(z * 10.0);
+    float phaseWave = sin(uElapsed * 0.0042 + phaseBand * 0.84 + aSeed * 0.45) * 0.052 * phaseMode;
+    float modeLift = motionGlow * 0.075 + contourLine * 0.028 + sectionSlice * 0.085 + phaseWave * (0.55 + z);
+    float displaced = (z + glitch + trailWave + interactionLift + modeLift) * uDepthScale * uMorphAmount * localMorph * breathing * settledMotion * revealed;
 
     vec3 transformed = position;
     transformed.xy += vec2(
@@ -704,6 +753,10 @@ const vertexShader = `
       cos(aSeed * 3.9 + uElapsed * 0.0013)
     ) * abs(depthDelta) * springArc * uParticleInertia * 0.018;
     transformed.xy += normalize(interactionDelta + vec2(0.0001)) * interactionField * 0.035;
+    transformed.xy += vec2(
+      sin(aSeed * 6.1 + uElapsed * 0.0025),
+      cos(aSeed * 5.4 + uElapsed * 0.0021)
+    ) * (motionGlow * 0.026 + sectionSlice * 0.012 + phaseMode * abs(phaseWave) * 0.06);
     transformed.z = displaced - uDepthScale * 0.45;
 
     float mono = dot(sourceColor, vec3(0.333333));
@@ -716,13 +769,19 @@ const vertexShader = `
     float blankBoost = mix(1.0, 1.42, uBlankSource);
     float pointLightFloor = depthWindow * scanTint * uBrightness * (1.0 - uBlankSource) * 0.16;
     float pointLight = max(pointLightFloor, reliefTone * fade * depthWindow * scanTint * uBrightness * blankBoost * (0.38 + localMorph * 0.62));
+    pointLight += depthWindow * uBrightness * (motionGlow * 0.72 + contourLine * 0.38 + sectionSlice * 0.62 + phaseMode * abs(phaseWave) * 2.4);
     vec3 litColor = colorChannel(displayColor * pointLight, uColorStrength);
+    litColor = mix(litColor, litColor + vec3(0.30, 0.68, 0.78) * motionGlow, memoryMode);
+    litColor = mix(litColor, litColor + vec3(0.72, 0.86, 0.52) * contourLine, contourMode);
+    litColor = mix(litColor, litColor + vec3(0.78, 0.95, 1.0) * sectionSlice, sectionMode);
+    litColor = mix(litColor, litColor + vec3(0.42, 0.55, 0.92) * abs(phaseWave) * 2.0, phaseMode);
     vec3 monoColor = vec3(pointLight * 0.78, pointLight * 0.82, pointLight * 0.9);
     vColor = mix(litColor, monoColor, step(0.5, uMonochrome));
-    vAlpha = clamp(depthWindow * uPointOpacity * (0.18 + localMorph * 0.82), 0.0, 1.0);
+    vAlpha = clamp(depthWindow * uPointOpacity * (0.18 + localMorph * 0.82 + motionGlow * 0.28 + contourLine * 0.18 + sectionSlice * 0.22), 0.0, 1.0);
 
     vec4 mvPosition = modelViewMatrix * vec4(transformed, 1.0);
-    gl_PointSize = max(1.15, uPointSize * uViewportHeight * uPixelRatio * 0.108 / max(0.1, -mvPosition.z)) * (1.0 + interactionField * 0.32);
+    gl_PointSize = max(1.15, uPointSize * uViewportHeight * uPixelRatio * 0.108 / max(0.1, -mvPosition.z)) *
+      (1.0 + interactionField * 0.32 + motionGlow * 0.42 + contourLine * 0.2 + sectionSlice * 0.32 + phaseMode * abs(phaseWave) * 1.8);
     gl_Position = projectionMatrix * mvPosition;
   }
 `;

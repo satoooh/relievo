@@ -13,6 +13,7 @@ describe("shareable state hash", () => {
       sourceKind: "demo",
       params: {
         ...defaultParams,
+        artMode: "phase",
         particleInertia: 0.52,
         pointSize: 0.22,
         qualityMode: "visual",
@@ -30,6 +31,7 @@ describe("shareable state hash", () => {
       sourceKind: "demo",
     });
     expect(decoded.params).toMatchObject({
+      artMode: "phase",
       particleInertia: 0.52,
       pointSize: 0.22,
       qualityMode: "visual",

@@ -16,6 +16,7 @@ import {
 import { depthBackendOptions } from "../depth/depthBackends";
 import { demoScenes } from "../media/demoScenes";
 import type {
+  ArtMode,
   DemoSceneId,
   DepthBackendSelection,
   ExportQuality,
@@ -41,6 +42,7 @@ export interface ViewElements {
   screenshotButton: HTMLButtonElement;
   recordButton: HTMLButtonElement;
   presetSelect: HTMLSelectElement;
+  artModeSelect: HTMLSelectElement;
   depthBackendSelect: HTMLSelectElement;
   qualityModeSelect: HTMLSelectElement;
   exportQualitySelect: HTMLSelectElement;
@@ -119,6 +121,14 @@ const sliders: Array<{ key: SliderKey; label: string; min: number; max: number; 
   { key: "glitchAmount", label: "Glitch", min: 0, max: 0.35, step: 0.01 },
 ];
 
+const artModeOptions: Array<{ id: ArtMode; label: string; tooltip: string }> = [
+  { id: "relief", label: "Relief field", tooltip: "Canonical readable point relief" },
+  { id: "memory", label: "Memory trails", tooltip: "Glow recent local motion and depth changes" },
+  { id: "contour", label: "Depth contours", tooltip: "Topographic depth bands over the point field" },
+  { id: "section", label: "Section scan", tooltip: "A moving slice inspects the relief surface" },
+  { id: "phase", label: "Phase waves", tooltip: "Depth bands synchronize into soft waves" },
+];
+
 export function createView(root: HTMLElement, params: ReliefParams): ViewElements {
   root.innerHTML = `
     <main class="relievo-shell relative h-full w-full overflow-hidden bg-[#030405] text-[#f1efe7]" data-palette="nocturne">
@@ -193,6 +203,7 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
 
         <select id="preset-select" class="hidden"></select>
 
+        <select id="art-mode-select" class="mt-2 w-full rounded border border-white/12 bg-[#12161d] px-2 py-2 text-xs text-white" data-tooltip="Switch point-field study mode"></select>
         <select id="depth-backend-select" class="mt-2 w-full rounded border border-white/12 bg-[#12161d] px-2 py-2 text-xs text-white"></select>
         <select id="quality-mode-select" class="mt-1 w-full rounded border border-white/12 bg-[#12161d] px-2 py-2 text-xs text-white">
           <option value="visual">Visual FPS priority</option>
@@ -276,6 +287,11 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
     presetSelect.insertAdjacentHTML("beforeend", `<option value="${preset.id}">${preset.name}</option>`);
   }
 
+  const artModeSelect = mustGet<HTMLSelectElement>("art-mode-select");
+  for (const mode of artModeOptions) {
+    artModeSelect.insertAdjacentHTML("beforeend", `<option value="${mode.id}" title="${mode.tooltip}">${mode.label}</option>`);
+  }
+
   const depthBackendSelect = mustGet<HTMLSelectElement>("depth-backend-select");
   for (const backend of depthBackendOptions) {
     depthBackendSelect.insertAdjacentHTML("beforeend", `<option value="${backend.id}">${backend.label}</option>`);
@@ -291,6 +307,7 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
   const monochrome = mustGet<HTMLInputElement>("monochrome");
   const qualityModeSelect = mustGet<HTMLSelectElement>("quality-mode-select");
   adaptiveQuality.checked = params.adaptiveQuality;
+  artModeSelect.value = params.artMode;
   monochrome.checked = params.monochrome;
   qualityModeSelect.value = params.qualityMode;
   depthBackendSelect.value = params.depthBackend;
@@ -315,6 +332,7 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
     screenshotButton: mustGet<HTMLButtonElement>("screenshot-button"),
     recordButton: mustGet<HTMLButtonElement>("record-button"),
     presetSelect,
+    artModeSelect,
     depthBackendSelect,
     qualityModeSelect,
     exportQualitySelect: mustGet<HTMLSelectElement>("export-quality-select"),
@@ -345,6 +363,7 @@ export function syncView(
   elements.adaptiveQuality.checked = params.adaptiveQuality;
   elements.emojiMode.checked = options.emojiMode;
   elements.monochrome.checked = params.monochrome;
+  elements.artModeSelect.value = params.artMode;
   elements.depthBackendSelect.value = params.depthBackend;
   elements.qualityModeSelect.value = params.qualityMode;
   elements.exportQualitySelect.value = options.exportQuality;
@@ -392,6 +411,10 @@ export function bindParamControls(
   });
   elements.monochrome.addEventListener("change", () => {
     params.monochrome = elements.monochrome.checked;
+    onChange();
+  });
+  elements.artModeSelect.addEventListener("change", () => {
+    params.artMode = elements.artModeSelect.value as ArtMode;
     onChange();
   });
   elements.depthBackendSelect.addEventListener("change", () => {

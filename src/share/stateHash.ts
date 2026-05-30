@@ -45,6 +45,7 @@ export function encodeShareableState(state: ShareableState): string {
   query.set("perform", state.performanceMode ? "1" : "0");
   query.set("emoji", state.emojiMode ? "1" : "0");
   query.set("export", state.exportQuality);
+  query.set("art", state.params.artMode);
   query.set("backend", state.params.depthBackend);
   query.set("qualityMode", state.params.qualityMode);
 
@@ -85,6 +86,11 @@ export function decodeShareableState(hash: string): Partial<ShareableState> {
     backend === "worker-cpu-heuristic"
   ) {
     params.depthBackend = backend;
+  }
+
+  const artMode = query.get("art");
+  if (artMode === "relief" || artMode === "memory" || artMode === "contour" || artMode === "section" || artMode === "phase") {
+    params.artMode = artMode;
   }
 
   const qualityMode = query.get("qualityMode");

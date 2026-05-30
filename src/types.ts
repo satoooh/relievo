@@ -6,6 +6,8 @@ export type DemoSceneId = "studio" | "mountain" | "product" | "alley" | "motion-
 
 export type QualityMode = "visual" | "balanced" | "quality";
 
+export type ArtMode = "relief" | "memory" | "contour" | "section" | "phase";
+
 export type DepthBackendSelection =
   | "worker-cpu-heuristic"
   | "depth-anything-v2-small"
@@ -14,6 +16,7 @@ export type DepthBackendSelection =
 export type DepthBackend = "cpu-heuristic" | DepthBackendSelection;
 
 export interface ReliefParams {
+  artMode: ArtMode;
   depthBackend: DepthBackendSelection;
   gridWidth: number;
   gridHeight: number;

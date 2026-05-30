@@ -6,6 +6,7 @@ export const presets: ReliefPreset[] = [
     name: "LiDAR Scan",
     description: "Default point-field relief language tuned to preserve the source image.",
     params: {
+      artMode: "relief",
       gridWidth: 420,
       gridHeight: 236,
       depthScale: 3.3,

@@ -8,6 +8,7 @@ Relievo should stay a 2.5D relief plane in navigable 3D space. The stronger dire
 - [ScanLAB Projects](https://scanlabprojects.co.uk/) treats precise spatial scans as an aesthetic material, not just measurement data. The useful cue is the tension between documentary source and abstract point texture.
 - [Depthkit](https://www.depthkit.tv/) frames volumetric capture as a workflow for spatial video. For Relievo, the takeaway is to keep the source legible while making the depth surface feel live.
 - [Refik Anadol Studio](https://refikanadol.com/works/) positions data, machine intelligence, and architecture as public-scale media art. The useful cue is not the scale, but the idea of motion systems that feel like authored data behavior.
+- [MediaPipe Hand Landmarker for Web](https://developers.google.com/mediapipe/solutions/vision/hand_landmarker/web_js) is a good candidate for a later interaction layer when pointer movement is not enough. It should drive masks or force fields over the existing relief plane rather than replace Depth Anything as the depth source.
 
 ## Directions
 
@@ -37,4 +38,16 @@ Relievo should stay a 2.5D relief plane in navigable 3D space. The stronger dire
 
 ## Implemented Note
 
-The first step is an interaction field: moving or dragging over the canvas disturbs nearby particles in the shader. It is intentionally modest so the source image still reads, but it gives the point field a material response that belongs to the browser artwork.
+The first step was an interaction field: moving or dragging over the canvas disturbs nearby particles in the shader. It is intentionally modest so the source image still reads, but it gives the point field a material response that belongs to the browser artwork.
+
+The next step is a study mode switcher:
+
+- Relief field: the canonical readable surface.
+- Memory trails: recent local motion and depth changes glow, lift, and drift slightly.
+- Depth contours: topographic bands emphasize depth strata without replacing the image.
+- Section scan: a moving slice inspects the relief surface as a spatial instrument.
+- Phase waves: points in similar depth bands move with subtly synchronized phase.
+
+These are shader and buffer-level studies, not separate presets. They keep the same media source and the same 2.5D plane so each mode can be judged as a material treatment rather than a new scene.
+
+MediaPipe should be introduced only if one of these modes benefits from semantic control. The likely first use is a hand or face force field: detected landmarks would become local attractors, cuts, or pressure points over the depth surface. That keeps the artwork in the Relievo material language while making webcam interaction more performative.
