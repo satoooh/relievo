@@ -6,7 +6,7 @@ It runs media sampling, depth inference, WebGL point rendering, live tuning, and
 
 ## Demo
 
-[![Relievo real-time browser demo](docs/assets/relievo-realtime-browser-demo-poster.jpg)](docs/assets/relievo-realtime-browser-demo.mp4)
+![Relievo real-time browser demo](docs/assets/relievo-realtime-browser-demo.gif)
 
 [View the lightweight MP4 demo](docs/assets/relievo-realtime-browser-demo.mp4). The capture shows local video frames being sampled, inferred, displaced, shaded, and tuned in real time inside the browser.
 
