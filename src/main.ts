@@ -10,7 +10,6 @@ import { createBlankSource, createDemoSource, createImageSource, createVideoSour
 import { findPreset, initialPresetId } from "./presets";
 import { ReliefRenderer } from "./renderer/ReliefRenderer";
 import { decodeShareableState, encodeShareableState } from "./share/stateHash";
-import { createAdvancedGui } from "./ui/lilGui";
 import { bindParamControls, createView, readDemoScene, syncView } from "./ui/view";
 import { RateMeter, detectWebGPU } from "./performance";
 import type { ExportQuality, FrameSample, MediaSourceHandle, ReliefParams, RuntimeStats } from "./types";
@@ -35,7 +34,6 @@ const depthPipeline = new DepthPipeline();
 const recorder = new CanvasRecorder();
 const renderMeter = new RateMeter();
 const inferenceMeter = new RateMeter();
-const gui = createAdvancedGui(params, () => sync());
 const minimumVisualFPS = 24;
 const targetVisualFPS = 30;
 const idealVisualFPS = 58;
@@ -224,7 +222,6 @@ function bindEvents(): void {
     source.stop();
     depthPipeline.dispose();
     renderer.stop();
-    gui.destroy();
   });
 
   requestAnimationFrame(animationLoop);

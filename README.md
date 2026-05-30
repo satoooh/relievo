@@ -53,7 +53,7 @@ Core modules:
 - `src/presets`: focused LiDAR Scan visual defaults.
 - `src/media`: image, video, webcam, and demo sources.
 - `src/export`: screenshot and MediaRecorder helpers.
-- `src/ui`: Tailwind-backed controls and lil-gui bridge.
+- `src/ui`: Tailwind-backed exhibition controls.
 
 ## Portfolio Copy
 

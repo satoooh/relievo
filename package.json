@@ -11,8 +11,9 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@fontsource-variable/geist": "^5.2.9",
+    "@fontsource-variable/geist-mono": "^5.2.8",
     "@huggingface/transformers": "^4.2.0",
-    "lil-gui": "^0.20.0",
     "lucide": "^1.17.0",
     "three": "^0.181.2"
   },

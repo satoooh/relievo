@@ -13,7 +13,7 @@ import {
   Video,
   createIcons,
 } from "lucide";
-import { depthBackendLabel, depthBackendOptions } from "../depth/depthBackends";
+import { depthBackendOptions } from "../depth/depthBackends";
 import { demoScenes } from "../media/demoScenes";
 import type {
   DemoSceneId,
@@ -121,7 +121,7 @@ const sliders: Array<{ key: SliderKey; label: string; min: number; max: number; 
 
 export function createView(root: HTMLElement, params: ReliefParams): ViewElements {
   root.innerHTML = `
-    <main class="relative h-full w-full overflow-hidden bg-[#030405] text-[#f1efe7]">
+    <main class="relievo-shell relative h-full w-full overflow-hidden bg-[#030405] text-[#f1efe7]" data-palette="nocturne">
       <section class="absolute inset-0" aria-label="Relievo viewport">
         <canvas id="relievo-canvas" class="h-full w-full"></canvas>
       </section>
@@ -131,20 +131,20 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
       </div>
 
       <header id="chrome" class="pointer-events-none absolute left-0 right-0 top-0 z-20 flex flex-col items-start justify-between gap-3 p-4 md:flex-row md:gap-4 md:p-5">
-        <div class="ui-art-label max-w-[360px] px-3 py-2">
+        <div class="ui-art-label pointer-events-auto max-w-[360px] px-3 py-2">
           <div class="flex items-center justify-between gap-3">
             <h1 class="text-base font-semibold leading-none tracking-normal text-[#f1efe7]">Relievo</h1>
-            <div class="flex gap-1.5" aria-hidden="true">
-              <span class="ui-palette-dot bg-[#8ae8ff]"></span>
-              <span class="ui-palette-dot bg-[#d8ff5f]"></span>
-              <span class="ui-palette-dot bg-[#f1efe7]"></span>
+            <div class="flex gap-1.5" aria-label="Palette">
+              <button class="ui-palette-button is-active" type="button" data-palette-button="nocturne" data-tooltip="Palette: nocturne" aria-label="Use nocturne palette" style="--swatch-a: #8ae8ff; --swatch-b: #d8ff5f"></button>
+              <button class="ui-palette-button" type="button" data-palette-button="ember" data-tooltip="Palette: ember" aria-label="Use ember palette" style="--swatch-a: #ff6a3d; --swatch-b: #f1efe7"></button>
+              <button class="ui-palette-button" type="button" data-palette-button="violet" data-tooltip="Palette: violet" aria-label="Use violet palette" style="--swatch-a: #b497ff; --swatch-b: #8ae8ff"></button>
             </div>
           </div>
           <p class="mt-1 text-[11px] leading-5 text-[#b8b6ae]">
             Real-time depth relief in a browser-based 3D space.
           </p>
         </div>
-        <div id="status" class="pointer-events-auto w-full max-w-[340px] rounded border border-white/10 bg-[#0e0e0f]/72 px-3 py-2 text-[11px] leading-5 text-[#b8b6ae] backdrop-blur-xl md:min-w-[220px] md:max-w-[430px]"></div>
+        <div id="status" class="ui-notice pointer-events-auto hidden max-w-[340px] px-3 py-2"></div>
       </header>
 
       <div id="loading-overlay" class="pointer-events-none absolute inset-0 z-30 hidden items-center justify-center bg-black/44 backdrop-blur-sm">
@@ -296,6 +296,7 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
 
   renderLucideIcons(root);
   bindTooltips(root);
+  bindPaletteControls(root);
 
   return {
     shell: root.querySelector("main")!,
@@ -367,16 +368,8 @@ export function syncView(
     : stats.recordingSupported
       ? "ui-icon-button"
       : "ui-icon-button cursor-not-allowed border-white/8 bg-white/4 text-white/42";
-  elements.status.innerHTML = `
-    <div>Source: ${stats.sourceKind}</div>
-    <div>Render: ${stats.renderFPS.toFixed(1)} FPS</div>
-    <div>Inference: ${stats.inferenceFPS.toFixed(1)} FPS / ${stats.inferenceMs.toFixed(1)} ms</div>
-    <div>Backend: ${depthBackendLabel(stats.backend)}</div>
-    <div>Pipeline: ${stats.pipeline}</div>
-    <div>WebGPU: ${stats.webgpuAvailable ? "available" : "not available"} / WASM fallback: enabled</div>
-    <div>Quality: ${stats.quality}</div>
-    ${stats.message ? `<div class="mt-1 text-[#f6c76f]">${stats.message}</div>` : ""}
-  `;
+  elements.status.textContent = stats.message;
+  elements.status.classList.toggle("hidden", stats.message.length === 0);
   renderLucideIcons(elements.controlsPanel);
 }
 
@@ -465,6 +458,27 @@ function bindTooltips(root: HTMLElement): void {
     target.addEventListener("focus", () => show(target));
     target.addEventListener("blur", (event) => hide(event.relatedTarget));
     target.addEventListener("click", () => show(target));
+  }
+}
+
+function bindPaletteControls(root: HTMLElement): void {
+  const shell = root.querySelector<HTMLElement>(".relievo-shell");
+  const buttons = [...root.querySelectorAll<HTMLButtonElement>("[data-palette-button]")];
+  if (!shell || buttons.length === 0) {
+    return;
+  }
+
+  const setPalette = (palette: string): void => {
+    shell.dataset.palette = palette;
+    for (const button of buttons) {
+      button.classList.toggle("is-active", button.dataset.paletteButton === palette);
+    }
+  };
+
+  for (const button of buttons) {
+    button.addEventListener("click", () => {
+      setPalette(button.dataset.paletteButton ?? "nocturne");
+    });
   }
 }
 
