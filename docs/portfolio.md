@@ -16,19 +16,20 @@
    - Upload image or video.
    - Start webcam.
    - Tune depth scale, point size, opacity, temporal smoothing, scan reveal, and presets.
-   - Save screenshots or short WebM clips.
+   - Save screenshots or short MP4/WebM clips.
 
 4. Technical Highlights
    - TypeScript + Vite + Tailwind CSS.
    - Three.js point cloud renderer with OrbitControls.
-   - CPU heuristic depth backend with isolated estimator boundary.
+   - CPU heuristic and Depth Anything V2 depth backends with an isolated estimator boundary.
    - Decoupled inference and render loops.
-   - MediaRecorder export.
+   - Shader-driven point relief animation.
+   - MediaRecorder export with MP4 preference and WebM fallback.
 
 5. Constraints
    - Monocular depth cues are expressive, not physically exact.
-   - The MVP uses a deterministic local estimator for portability.
-   - Future neural backends can fit behind the same depth-estimator interface.
+   - The deterministic local estimator remains useful for portability.
+   - Neural backends trade startup/model cost for stronger depth structure.
 
 ## Article Outline
 
