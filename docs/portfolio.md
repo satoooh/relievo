@@ -4,13 +4,13 @@
 
 1. Hero
    - Title: Relievo
-   - Subtitle: Real-time depth relief renderer for images, video, and webcam input.
-   - Visual: Full-bleed canvas capture showing a point relief in motion.
+   - Subtitle: Real-time browser depth relief renderer for images, video, and webcam input.
+   - Visual: Full-bleed browser capture showing media frames becoming a point relief in motion.
    - Primary action: Try the demo.
 
 2. Concept
    - Relievo transforms flat media into an interactive 2.5D particle sculpture.
-   - It is a browser-based expression tool, not a metric 3D reconstruction system.
+   - It keeps sampling, depth inference, WebGL rendering, tuning, and export in the browser.
 
 3. Interaction
    - Upload image or video.
@@ -26,10 +26,10 @@
    - Shader-driven point relief animation.
    - MediaRecorder export with MP4 preference and WebM fallback.
 
-5. Constraints
-   - Monocular depth cues are expressive, not physically exact.
-   - The deterministic local estimator remains useful for portability.
+5. Technical Direction
+   - The deterministic local estimator remains useful for fast startup and portability.
    - Neural backends trade startup/model cost for stronger depth structure.
+   - Demo materials should emphasize real-time browser inference and live visual control.
 
 ## Article Outline
 
@@ -46,7 +46,7 @@ Outline:
 3. Keeping render and inference loops separate
 4. Presets as visual language, not just settings
 5. Exporting screenshots and short recordings
-6. Current limits and future neural depth backends
+6. Depth backend tradeoffs and future visual directions
 
 ## Demo Capture Checklist
 

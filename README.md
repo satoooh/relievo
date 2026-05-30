@@ -1,8 +1,14 @@
 # Relievo
 
-Relievo is a browser-based depth relief renderer. It is not a 3D reconstruction tool.
+Relievo is a browser-based depth relief renderer for turning images, video, and webcam input into live 2.5D point-cloud sculptures.
 
-It turns images, video files, or webcam input into an interactive 2.5D particle relief by estimating a lightweight depth field, displacing a point grid in Three.js, and exposing visual controls for live tuning.
+It runs media sampling, depth inference, WebGL point rendering, live tuning, and capture export directly in the browser.
+
+## Demo
+
+<video src="docs/assets/relievo-realtime-browser-demo.mp4" poster="docs/assets/relievo-realtime-browser-demo-poster.jpg" controls muted loop playsinline width="100%"></video>
+
+[View the lightweight MP4 demo](docs/assets/relievo-realtime-browser-demo.mp4)
 
 ## What It Does
 
@@ -12,15 +18,6 @@ It turns images, video files, or webcam input into an interactive 2.5D particle 
 - Separates rendering from frame inference so camera movement stays responsive while frames are being analyzed.
 - Provides presets such as Ghost Relief, LiDAR Scan, Topographic, Soft Hologram, Depth Sculpture, and Glitch Field.
 - Captures PNG screenshots and short canvas recordings, preferring MP4 when the browser supports it and falling back to WebM.
-
-## What It Is Not
-
-- It does not recover metric 3D geometry.
-- It does not create stable multi-view meshes.
-- It does not perform WebXR or cloud processing.
-- It does not upload media anywhere.
-
-Relievo treats monocular depth cues as an expressive signal for a visual instrument, not as ground truth geometry.
 
 ## Local Development
 
@@ -58,7 +55,7 @@ Core modules:
 
 Relievo is a real-time browser visual instrument that turns flat media into a moving depth relief. It uses monocular image cues to lift a particle grid into 3D space, letting the viewer orbit, tune, scan, and export the result directly from the browser.
 
-The important constraint is also the concept: this is 2.5D relief rendering, not reconstruction. The output is designed to feel sculptural and legible, while staying honest about what a single camera view can infer.
+The output is designed to feel sculptural and legible while keeping the interaction immediate: every frame can be sampled, inferred, displaced, shaded, and captured on a local browser loop.
 
 ## Representative Captures
 
