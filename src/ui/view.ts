@@ -1,3 +1,18 @@
+import {
+  Camera,
+  Circle,
+  Image,
+  ImageDown,
+  Maximize2,
+  Minimize2,
+  CircleDot,
+  Share2,
+  SlidersHorizontal,
+  Sparkles,
+  Square,
+  Video,
+  createIcons,
+} from "lucide";
 import { depthBackendLabel, depthBackendOptions } from "../depth/depthBackends";
 import { demoScenes } from "../media/demoScenes";
 import type {
@@ -66,6 +81,21 @@ export interface ViewElements {
 
 type SliderKey = keyof ViewElements["controls"];
 
+const viewIcons = {
+  Camera,
+  Circle,
+  Image,
+  ImageDown,
+  Maximize2,
+  Minimize2,
+  CircleDot,
+  Share2,
+  SlidersHorizontal,
+  Sparkles,
+  Square,
+  Video,
+};
+
 const sliders: Array<{ key: SliderKey; label: string; min: number; max: number; step: number }> = [
   { key: "depthScale", label: "Depth", min: 0, max: 6, step: 0.05 },
   { key: "depthGamma", label: "Gamma", min: 0.3, max: 2.4, step: 0.01 },
@@ -124,24 +154,36 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
 
       <aside id="controls-panel" class="absolute bottom-0 left-0 top-auto z-20 max-h-[58vh] w-full overflow-y-auto border-t border-white/12 bg-black/54 p-2 backdrop-blur-xl md:bottom-5 md:left-5 md:top-auto md:max-h-[72vh] md:w-[312px] md:border md:p-3">
         <div class="grid grid-cols-5 gap-1">
-          <button id="blank-button" class="ui-icon-button" type="button" title="Blank field" aria-label="Blank field"><span aria-hidden="true">○</span></button>
-          <label class="ui-icon-button cursor-pointer" title="Load image" aria-label="Load image">
-            <span aria-hidden="true">▧</span>
+          <button id="blank-button" class="ui-icon-button" type="button" title="Blank field" aria-label="Blank field" data-tooltip="Show blank point field">
+            <i data-lucide="circle" aria-hidden="true"></i>
+          </button>
+          <label class="ui-icon-button cursor-pointer" title="Load image" aria-label="Load image" data-tooltip="Load image">
+            <i data-lucide="image" aria-hidden="true"></i>
             <input id="image-input" type="file" accept="image/*" class="sr-only" />
           </label>
-          <label class="ui-icon-button cursor-pointer" title="Load video" aria-label="Load video">
-            <span aria-hidden="true">▶</span>
+          <label class="ui-icon-button cursor-pointer" title="Load video" aria-label="Load video" data-tooltip="Load video">
+            <i data-lucide="video" aria-hidden="true"></i>
             <input id="video-input" type="file" accept="video/*" class="sr-only" />
           </label>
-          <button id="webcam-button" class="ui-icon-button" type="button" title="Webcam" aria-label="Webcam"><span aria-hidden="true">◎</span></button>
-          <button id="demo-button" class="ui-icon-button" type="button" title="Demo scene" aria-label="Demo scene"><span aria-hidden="true">✦</span></button>
+          <button id="webcam-button" class="ui-icon-button" type="button" title="Webcam" aria-label="Webcam" data-tooltip="Open webcam">
+            <i data-lucide="camera" aria-hidden="true"></i>
+          </button>
+          <button id="demo-button" class="ui-icon-button" type="button" title="Demo scene" aria-label="Demo scene" data-tooltip="Load demo scene">
+            <i data-lucide="sparkles" aria-hidden="true"></i>
+          </button>
         </div>
 
         <div class="mt-2 grid grid-cols-[1fr_auto_auto_auto] gap-1">
           <select id="demo-scene-select" class="min-w-0 rounded border border-white/12 bg-[#12161d] px-2 py-2 text-xs text-white"></select>
-          <button id="screenshot-button" class="ui-icon-button bg-white text-black hover:bg-white/88" type="button" title="Capture PNG" aria-label="Capture PNG"><span aria-hidden="true">⇩</span></button>
-          <button id="record-button" class="ui-icon-button" type="button" title="Record clip" aria-label="Record clip"><span aria-hidden="true">●</span></button>
-          <button id="share-button" class="ui-icon-button" type="button" title="Share state" aria-label="Share state"><span aria-hidden="true">↗</span></button>
+          <button id="screenshot-button" class="ui-icon-button bg-white text-black hover:bg-white/88" type="button" title="Capture PNG" aria-label="Capture PNG" data-tooltip="Export PNG">
+            <i data-lucide="image-down" aria-hidden="true"></i>
+          </button>
+          <button id="record-button" class="ui-icon-button" type="button" title="Record clip" aria-label="Record clip" data-tooltip="Start recording">
+            <i data-lucide="circle-dot" aria-hidden="true"></i>
+          </button>
+          <button id="share-button" class="ui-icon-button" type="button" title="Share state" aria-label="Share state" data-tooltip="Copy share URL">
+            <i data-lucide="share-2" aria-hidden="true"></i>
+          </button>
         </div>
 
         <select id="preset-select" class="hidden"></select>
@@ -158,24 +200,29 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
             <option value="archive">Archive export</option>
             <option value="web">Web export</option>
           </select>
-          <button id="performance-button" class="ui-icon-button" type="button" title="Performance mode" aria-label="Performance mode"><span aria-hidden="true">⛶</span></button>
+          <button id="performance-button" class="ui-icon-button" type="button" title="Performance mode" aria-label="Performance mode" data-tooltip="Performance mode">
+            <i data-lucide="maximize-2" aria-hidden="true"></i>
+          </button>
         </div>
 
         <details class="mt-2 rounded border border-white/10 bg-white/5">
-          <summary class="cursor-pointer px-2 py-2 text-xs text-white/74">Fine tune</summary>
+          <summary class="flex cursor-pointer items-center gap-2 px-2 py-2 text-xs text-white/74" data-tooltip="Open detailed controls">
+            <i data-lucide="sliders-horizontal" aria-hidden="true"></i>
+            <span>Fine tune</span>
+          </summary>
           <div id="slider-panel" class="grid grid-cols-1 gap-1 px-2 pb-2"></div>
         </details>
 
         <div class="mt-2 grid grid-cols-3 gap-1 text-xs">
-          <label class="ui-toggle" title="Adaptive quality">
+          <label class="ui-toggle" title="Adaptive quality" data-tooltip="Toggle adaptive quality">
             <input id="adaptive-quality" type="checkbox" class="h-4 w-4" />
             <span>Auto</span>
           </label>
-          <label class="ui-toggle" title="Monochrome">
+          <label class="ui-toggle" title="Monochrome" data-tooltip="Toggle monochrome">
             <input id="monochrome" type="checkbox" class="h-4 w-4" />
             Mono
           </label>
-          <label class="ui-toggle" title="Emoji glyph layer">
+          <label class="ui-toggle" title="Emoji glyph layer" data-tooltip="Toggle emoji layer">
             <input id="emoji-mode" type="checkbox" class="h-4 w-4" />
             Emoji
           </label>
@@ -188,6 +235,8 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
           <option value="bottom-top">Scan bottom to top</option>
         </select>
       </aside>
+
+      <div id="ui-tooltip" class="ui-tooltip" role="tooltip"></div>
     </main>
   `;
 
@@ -232,6 +281,9 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
   scanDirection.value = params.scanDirection;
   qualityModeSelect.value = params.qualityMode;
   depthBackendSelect.value = params.depthBackend;
+
+  renderLucideIcons(root);
+  bindTooltips(root);
 
   return {
     shell: root.querySelector("main")!,
@@ -284,9 +336,10 @@ export function syncView(
   elements.depthBackendSelect.value = params.depthBackend;
   elements.qualityModeSelect.value = params.qualityMode;
   elements.exportQualitySelect.value = options.exportQuality;
-  elements.performanceButton.innerHTML = `<span aria-hidden="true">${options.performanceMode ? "×" : "⛶"}</span>`;
+  elements.performanceButton.innerHTML = `<i data-lucide="${options.performanceMode ? "minimize-2" : "maximize-2"}" aria-hidden="true"></i>`;
   elements.performanceButton.title = options.performanceMode ? "Show controls" : "Performance mode";
   elements.performanceButton.setAttribute("aria-label", options.performanceMode ? "Show controls" : "Performance mode");
+  elements.performanceButton.dataset.tooltip = options.performanceMode ? "Show controls" : "Performance mode";
   elements.shell.classList.toggle("is-performance", options.performanceMode);
   elements.loadingOverlay.classList.toggle("hidden", !stats.loading);
   elements.loadingOverlay.classList.toggle("flex", stats.loading);
@@ -294,18 +347,16 @@ export function syncView(
   if (loadingLabel) {
     loadingLabel.textContent = stats.loadingLabel;
   }
-  elements.recordButton.textContent = stats.recording ? "STOP" : "REC";
+  elements.recordButton.innerHTML = stats.recording ? `<i data-lucide="square" aria-hidden="true"></i><span>Stop</span>` : `<i data-lucide="circle-dot" aria-hidden="true"></i>`;
   elements.recordButton.title = stats.recording ? "Stop recording" : "Record clip";
   elements.recordButton.setAttribute("aria-label", stats.recording ? "Stop recording" : "Record clip");
+  elements.recordButton.dataset.tooltip = stats.recording ? "Stop recording" : "Start recording";
   elements.recordButton.disabled = !stats.recordingSupported;
   elements.recordButton.className = stats.recording
     ? "ui-icon-button border-red-300/50 bg-red-400 text-xs font-medium text-black hover:bg-red-300"
     : stats.recordingSupported
       ? "ui-icon-button"
       : "ui-icon-button cursor-not-allowed border-white/8 bg-white/4 text-white/42";
-  if (!stats.recording) {
-    elements.recordButton.innerHTML = `<span aria-hidden="true">●</span>`;
-  }
   elements.status.innerHTML = `
     <div>Source: ${stats.sourceKind}</div>
     <div>Render: ${stats.renderFPS.toFixed(1)} FPS</div>
@@ -316,6 +367,7 @@ export function syncView(
     <div>Quality: ${stats.quality}</div>
     ${stats.message ? `<div class="mt-1 text-[#f6c76f]">${stats.message}</div>` : ""}
   `;
+  renderLucideIcons(elements.controlsPanel);
 }
 
 export function bindParamControls(
@@ -358,6 +410,75 @@ export function readDemoScene(elements: ViewElements): DemoSceneId {
 
 function formatNumber(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(2);
+}
+
+function renderLucideIcons(root: Element): void {
+  createIcons({
+    icons: viewIcons,
+    root,
+    attrs: {
+      class: "ui-icon-svg",
+      "aria-hidden": "true",
+    },
+  });
+}
+
+function bindTooltips(root: HTMLElement): void {
+  const tooltip = root.querySelector<HTMLElement>("#ui-tooltip");
+  if (!tooltip) {
+    return;
+  }
+
+  let activeTarget: HTMLElement | null = null;
+
+  const show = (target: HTMLElement): void => {
+    const label = target.dataset.tooltip;
+    if (!label) {
+      return;
+    }
+
+    activeTarget = target;
+    tooltip.textContent = label;
+    tooltip.classList.add("is-visible");
+    positionTooltip(target, tooltip);
+  };
+
+  const hide = (target: EventTarget | null): void => {
+    if (activeTarget && target instanceof Node && activeTarget.contains(target)) {
+      return;
+    }
+
+    activeTarget = null;
+    tooltip.classList.remove("is-visible");
+  };
+
+  for (const target of root.querySelectorAll<HTMLElement>("[data-tooltip]")) {
+    target.addEventListener("mouseenter", () => show(target));
+    target.addEventListener("mousemove", () => positionTooltip(target, tooltip));
+    target.addEventListener("mouseleave", (event) => hide(event.relatedTarget));
+    target.addEventListener("focus", () => show(target));
+    target.addEventListener("blur", (event) => hide(event.relatedTarget));
+    target.addEventListener("click", () => show(target));
+  }
+}
+
+function positionTooltip(target: HTMLElement, tooltip: HTMLElement): void {
+  const rect = target.getBoundingClientRect();
+  const tooltipRect = tooltip.getBoundingClientRect();
+  const margin = 8;
+  const x = clamp(
+    rect.left + rect.width / 2 - tooltipRect.width / 2,
+    margin,
+    window.innerWidth - tooltipRect.width - margin,
+  );
+  const top = rect.top - tooltipRect.height - 9;
+  const y = top > margin ? top : rect.bottom + 9;
+
+  tooltip.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0)`;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }
 
 function mustGet<T extends HTMLElement>(id: string): T {

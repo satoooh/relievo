@@ -29,39 +29,105 @@ select {
 }
 
 .ui-icon-button {
+  position: relative;
   display: inline-flex;
   min-width: 0;
   height: 36px;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgb(255 255 255 / 0.12);
-  border-radius: 6px;
-  background: rgb(255 255 255 / 0.08);
+  gap: 6px;
+  border: 1px solid rgb(255 255 255 / 0.14);
+  border-radius: 8px;
+  background: rgb(12 16 22 / 0.82);
   padding: 0 10px;
   color: currentColor;
   font-size: 15px;
   line-height: 1;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.06),
+    0 8px 24px rgb(0 0 0 / 0.18);
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    color 140ms ease,
+    transform 140ms ease;
+}
+
+.ui-icon-button:hover {
+  border-color: rgb(255 255 255 / 0.24);
+  background: rgb(22 28 38 / 0.94);
+}
+
+.ui-icon-button:active {
+  transform: translateY(1px);
+}
+
+.ui-icon-button:focus-visible,
+.ui-toggle:focus-within,
+select:focus-visible,
+input[type="range"]:focus-visible {
+  outline: 2px solid rgb(110 231 216 / 0.72);
+  outline-offset: 2px;
+}
+
+.ui-icon-svg {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  stroke-width: 1.85;
+}
+
+.ui-toggle {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid rgb(255 255 255 / 0.13);
+  border-radius: 8px;
+  background: rgb(12 16 22 / 0.76);
+  padding: 8px 6px;
+  color: rgb(255 255 255 / 0.78);
   transition:
     background-color 140ms ease,
     border-color 140ms ease,
     color 140ms ease;
 }
 
-.ui-icon-button:hover {
-  background: rgb(255 255 255 / 0.14);
+.ui-toggle:hover {
+  border-color: rgb(255 255 255 / 0.22);
+  background: rgb(22 28 38 / 0.9);
+  color: rgb(255 255 255 / 0.9);
 }
 
-.ui-toggle {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
+.ui-tooltip {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 80;
+  max-width: 220px;
   border: 1px solid rgb(255 255 255 / 0.12);
-  border-radius: 6px;
-  background: rgb(255 255 255 / 0.07);
-  padding: 8px 6px;
-  color: rgb(255 255 255 / 0.78);
+  border-radius: 7px;
+  background: rgb(8 10 14 / 0.96);
+  box-shadow: 0 14px 42px rgb(0 0 0 / 0.4);
+  color: rgb(255 255 255 / 0.88);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1;
+  opacity: 0;
+  padding: 7px 8px;
+  pointer-events: none;
+  transform: translate3d(-9999px, -9999px, 0);
+  transition: opacity 120ms ease;
+  white-space: nowrap;
+}
+
+.ui-tooltip.is-visible {
+  opacity: 1;
+  transition-duration: 80ms;
 }
 
 @keyframes relievo-load {
