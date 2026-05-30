@@ -47,7 +47,6 @@ export function encodeShareableState(state: ShareableState): string {
   query.set("export", state.exportQuality);
   query.set("backend", state.params.depthBackend);
   query.set("qualityMode", state.params.qualityMode);
-  query.set("scanDir", state.params.scanDirection);
 
   for (const key of numericParamKeys) {
     query.set(key, formatParamNumber(state.params[key]));

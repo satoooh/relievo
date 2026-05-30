@@ -16,9 +16,9 @@ describe("shareable state hash", () => {
         particleInertia: 0.52,
         pointSize: 0.22,
         qualityMode: "visual",
-        scanDirection: "top-bottom",
       },
     });
+    expect(hash).not.toContain("scanDir");
 
     const decoded = decodeShareableState(hash);
     expect(decoded).toMatchObject({
@@ -33,6 +33,13 @@ describe("shareable state hash", () => {
       particleInertia: 0.52,
       pointSize: 0.22,
       qualityMode: "visual",
+    });
+  });
+
+  it("still accepts legacy scan direction links", () => {
+    const decoded = decodeShareableState("#scanDir=top-bottom");
+
+    expect(decoded.params).toMatchObject({
       scanDirection: "top-bottom",
     });
   });

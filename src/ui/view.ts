@@ -22,7 +22,6 @@ import type {
   QualityMode,
   ReliefParams,
   RuntimeStats,
-  ScanDirection,
 } from "../types";
 import { presets } from "../presets";
 
@@ -76,7 +75,6 @@ export interface ViewElements {
   adaptiveQuality: HTMLInputElement;
   emojiMode: HTMLInputElement;
   monochrome: HTMLInputElement;
-  scanDirection: HTMLSelectElement;
 }
 
 type SliderKey = keyof ViewElements["controls"];
@@ -123,23 +121,30 @@ const sliders: Array<{ key: SliderKey; label: string; min: number; max: number; 
 
 export function createView(root: HTMLElement, params: ReliefParams): ViewElements {
   root.innerHTML = `
-    <main class="relative h-full w-full overflow-hidden bg-[#08090b] text-white">
+    <main class="relative h-full w-full overflow-hidden bg-[#030405] text-[#f1efe7]">
       <section class="absolute inset-0" aria-label="Relievo viewport">
         <canvas id="relievo-canvas" class="h-full w-full"></canvas>
       </section>
 
-      <div id="input-preview-shell" class="pointer-events-none absolute bottom-4 right-4 z-20 hidden w-[260px] overflow-hidden rounded border border-white/16 bg-black/44 shadow-2xl backdrop-blur-md md:block">
+      <div id="input-preview-shell" class="pointer-events-none absolute bottom-4 right-4 z-20 hidden w-[260px] overflow-hidden rounded border border-white/12 bg-[#111214]/72 shadow-2xl backdrop-blur-xl md:block">
         <canvas id="input-preview-canvas" class="block aspect-video w-full"></canvas>
       </div>
 
       <header id="chrome" class="pointer-events-none absolute left-0 right-0 top-0 z-20 flex flex-col items-start justify-between gap-3 p-4 md:flex-row md:gap-4 md:p-5">
-        <div class="max-w-[360px] rounded border border-white/8 bg-black/30 px-3 py-2 text-white/74 backdrop-blur-md">
-          <h1 class="text-lg font-semibold leading-none tracking-normal">Relievo</h1>
-          <p class="mt-1 text-xs leading-5">
-            Browser depth relief instrument.
+        <div class="ui-art-label max-w-[360px] px-3 py-2">
+          <div class="flex items-center justify-between gap-3">
+            <h1 class="text-base font-semibold leading-none tracking-normal text-[#f1efe7]">Relievo</h1>
+            <div class="flex gap-1.5" aria-hidden="true">
+              <span class="ui-palette-dot bg-[#8ae8ff]"></span>
+              <span class="ui-palette-dot bg-[#d8ff5f]"></span>
+              <span class="ui-palette-dot bg-[#f1efe7]"></span>
+            </div>
+          </div>
+          <p class="mt-1 text-[11px] leading-5 text-[#b8b6ae]">
+            Real-time depth relief in a browser-based 3D space.
           </p>
         </div>
-        <div id="status" class="pointer-events-auto w-full max-w-[340px] rounded border border-white/14 bg-black/46 px-3 py-2 text-xs leading-5 text-white/74 backdrop-blur-md md:min-w-[220px] md:max-w-none"></div>
+        <div id="status" class="pointer-events-auto w-full max-w-[340px] rounded border border-white/10 bg-[#0e0e0f]/72 px-3 py-2 text-[11px] leading-5 text-[#b8b6ae] backdrop-blur-xl md:min-w-[220px] md:max-w-[430px]"></div>
       </header>
 
       <div id="loading-overlay" class="pointer-events-none absolute inset-0 z-30 hidden items-center justify-center bg-black/44 backdrop-blur-sm">
@@ -152,7 +157,7 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
         </div>
       </div>
 
-      <aside id="controls-panel" class="absolute bottom-0 left-0 top-auto z-20 max-h-[58vh] w-full overflow-y-auto border-t border-white/12 bg-black/54 p-2 backdrop-blur-xl md:bottom-5 md:left-5 md:top-auto md:max-h-[72vh] md:w-[312px] md:border md:p-3">
+      <aside id="controls-panel" class="absolute bottom-0 left-0 top-auto z-20 max-h-[58vh] w-full overflow-y-auto border-t border-white/12 bg-[#111214]/72 p-2 text-[#f1efe7] backdrop-blur-xl md:bottom-5 md:left-5 md:top-auto md:max-h-[72vh] md:w-[312px] md:border md:p-3">
         <div class="grid grid-cols-5 gap-1">
           <button id="blank-button" class="ui-icon-button" type="button" title="Blank field" aria-label="Blank field" data-tooltip="Show blank point field">
             <i data-lucide="circle" aria-hidden="true"></i>
@@ -196,14 +201,30 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
         </select>
 
         <div class="mt-1 grid grid-cols-[1fr_auto] gap-1">
-          <select id="export-quality-select" class="min-w-0 rounded border border-white/12 bg-[#12161d] px-2 py-2 text-xs text-white">
-            <option value="archive">Archive export</option>
-            <option value="web">Web export</option>
+          <select id="export-quality-select" class="min-w-0 rounded border border-white/12 bg-[#12161d] px-2 py-2 text-xs text-white" data-tooltip="Choose recording bitrate">
+            <option value="archive">Archive master</option>
+            <option value="web">Web share</option>
           </select>
           <button id="performance-button" class="ui-icon-button" type="button" title="Performance mode" aria-label="Performance mode" data-tooltip="Performance mode">
             <i data-lucide="maximize-2" aria-hidden="true"></i>
           </button>
         </div>
+        <p id="export-quality-help" class="ui-control-note">
+          Archive records a high-bitrate master. Web share records a lighter file. The browser uses MP4 when available, otherwise WebM.
+        </p>
+
+        <details class="mt-2 rounded border border-white/10 bg-white/5">
+          <summary class="flex cursor-pointer items-center gap-2 px-2 py-2 text-xs text-white/74" data-tooltip="Show interaction guide">
+            <span class="ui-guide-dot"></span>
+            <span>Guide</span>
+          </summary>
+          <div class="grid gap-1 px-2 pb-2 text-[11px] leading-5 text-white/58">
+            <div><kbd class="ui-kbd">Drag</kbd> orbit the relief plane</div>
+            <div><kbd class="ui-kbd">Wheel</kbd> zoom through the 3D space</div>
+            <div><kbd class="ui-kbd">Right drag</kbd> pan the view</div>
+            <div><kbd class="ui-kbd">Double-click</kbd> hide the interface</div>
+          </div>
+        </details>
 
         <details class="mt-2 rounded border border-white/10 bg-white/5">
           <summary class="flex cursor-pointer items-center gap-2 px-2 py-2 text-xs text-white/74" data-tooltip="Open detailed controls">
@@ -227,13 +248,6 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
             Emoji
           </label>
         </div>
-
-        <select id="scan-direction" class="mt-1 w-full rounded border border-white/12 bg-[#12161d] px-2 py-2 text-xs text-white">
-          <option value="left-right">Scan left to right</option>
-          <option value="right-left">Scan right to left</option>
-          <option value="top-bottom">Scan top to bottom</option>
-          <option value="bottom-top">Scan bottom to top</option>
-        </select>
       </aside>
 
       <div id="ui-tooltip" class="ui-tooltip" role="tooltip"></div>
@@ -274,11 +288,9 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
   const adaptiveQuality = mustGet<HTMLInputElement>("adaptive-quality");
   const emojiMode = mustGet<HTMLInputElement>("emoji-mode");
   const monochrome = mustGet<HTMLInputElement>("monochrome");
-  const scanDirection = mustGet<HTMLSelectElement>("scan-direction");
   const qualityModeSelect = mustGet<HTMLSelectElement>("quality-mode-select");
   adaptiveQuality.checked = params.adaptiveQuality;
   monochrome.checked = params.monochrome;
-  scanDirection.value = params.scanDirection;
   qualityModeSelect.value = params.qualityMode;
   depthBackendSelect.value = params.depthBackend;
 
@@ -311,7 +323,6 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
     adaptiveQuality,
     emojiMode,
     monochrome,
-    scanDirection,
   };
 }
 
@@ -332,7 +343,6 @@ export function syncView(
   elements.adaptiveQuality.checked = params.adaptiveQuality;
   elements.emojiMode.checked = options.emojiMode;
   elements.monochrome.checked = params.monochrome;
-  elements.scanDirection.value = params.scanDirection;
   elements.depthBackendSelect.value = params.depthBackend;
   elements.qualityModeSelect.value = params.qualityMode;
   elements.exportQualitySelect.value = options.exportQuality;
@@ -388,10 +398,6 @@ export function bindParamControls(
   });
   elements.monochrome.addEventListener("change", () => {
     params.monochrome = elements.monochrome.checked;
-    onChange();
-  });
-  elements.scanDirection.addEventListener("change", () => {
-    params.scanDirection = elements.scanDirection.value as ScanDirection;
     onChange();
   });
   elements.depthBackendSelect.addEventListener("change", () => {
