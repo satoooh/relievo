@@ -3,7 +3,6 @@ import type { DepthBackend, DepthBackendSelection } from "../types";
 interface DepthBackendMeta {
   dtype?: "fp32" | "q4";
   id: DepthBackendSelection;
-  invertDepth?: boolean;
   label: string;
   modelId?: string;
   useExternalDataFormat?: boolean;
@@ -21,13 +20,6 @@ export const depthBackendOptions: DepthBackendMeta[] = [
     label: "Depth Anything V2 Base",
     modelId: "onnx-community/depth-anything-v2-base",
     dtype: "q4",
-  },
-  {
-    id: "apple-depth-pro-sharp",
-    label: "Apple Depth Pro Sharp",
-    modelId: "onnx-community/DepthPro-ONNX",
-    dtype: "q4",
-    invertDepth: true,
   },
   {
     id: "worker-cpu-heuristic",
@@ -51,5 +43,5 @@ export function isDepthAnythingBackend(id: DepthBackendSelection): boolean {
 }
 
 export function isHighCostDepthBackend(id: DepthBackendSelection): boolean {
-  return id === "depth-anything-v2-base" || id === "apple-depth-pro-sharp";
+  return id === "depth-anything-v2-base";
 }

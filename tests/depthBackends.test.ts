@@ -8,12 +8,6 @@ describe("depth backend metadata", () => {
     expect(getDepthBackendMeta("depth-anything-v2-base").modelId).toBe("onnx-community/depth-anything-v2-base");
   });
 
-  it("exposes Apple Depth Pro as an experimental sharp-boundary backend", () => {
-    const depthPro = getDepthBackendMeta("apple-depth-pro-sharp");
-    expect(depthPro.modelId).toBe("onnx-community/DepthPro-ONNX");
-    expect(depthPro.invertDepth).toBe(true);
-  });
-
   it("keeps small as the first selectable backend for lower-cost fallback", () => {
     expect(depthBackendOptions[0]?.id).toBe("depth-anything-v2-small");
   });
