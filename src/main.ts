@@ -6,13 +6,15 @@ import { TemporalSmoother } from "./depth/smoothing";
 import { CanvasRecorder, downloadCanvasPNG, timestamp } from "./export/capture";
 import { FrameSampler } from "./media/frameSampler";
 import { initialDemoSceneId } from "./media/demoScenes";
-import { createDemoSource, createImageSource, createVideoSource, createWebcamSource } from "./media/mediaSources";
+import { createBlankSource, createDemoSource, createImageSource, createVideoSource, createWebcamSource } from "./media/mediaSources";
 import { findPreset, initialPresetId } from "./presets";
+import { EmojiMosaic } from "./renderer/EmojiMosaic";
 import { ReliefRenderer } from "./renderer/ReliefRenderer";
+import { decodeShareableState, encodeShareableState } from "./share/stateHash";
 import { createAdvancedGui } from "./ui/lilGui";
 import { bindParamControls, createView, readDemoScene, syncView } from "./ui/view";
 import { RateMeter, detectWebGPU } from "./performance";
-import type { MediaSourceHandle, ReliefParams, RuntimeStats } from "./types";
+import type { ExportQuality, FrameSample, MediaSourceHandle, ReliefParams, RuntimeStats } from "./types";
 
 const root = document.querySelector<HTMLElement>("#app");
 
@@ -20,9 +22,15 @@ if (!root) {
   throw new Error("Missing #app root.");
 }
 
-const params: ReliefParams = { ...defaultParams, ...findPreset(initialPresetId).params };
+const initialShareState = decodeShareableState(window.location.hash);
+const params: ReliefParams = {
+  ...defaultParams,
+  ...findPreset(initialShareState.presetId ?? initialPresetId).params,
+  ...initialShareState.params,
+};
 const elements = createView(root, params);
 const renderer = new ReliefRenderer(elements.canvas);
+const emojiMosaic = new EmojiMosaic(elements.emojiCanvas);
 const sampler = new FrameSampler();
 const smoother = new TemporalSmoother();
 const depthPipeline = new DepthPipeline();
@@ -31,14 +39,19 @@ const renderMeter = new RateMeter();
 const inferenceMeter = new RateMeter();
 const gui = createAdvancedGui(params, () => sync());
 
-let currentDemoSceneId = initialDemoSceneId;
-let source: MediaSourceHandle = createDemoSource(currentDemoSceneId);
+let currentDemoSceneId = initialShareState.demoSceneId ?? initialDemoSceneId;
+let source: MediaSourceHandle = initialShareState.sourceKind === "demo" ? createDemoSource(currentDemoSceneId) : createBlankSource();
 let lastStatsSync = 0;
-let currentPresetId = initialPresetId;
+let currentPresetId = initialShareState.presetId ?? initialPresetId;
+let performanceMode = initialShareState.performanceMode ?? false;
+let emojiMode = initialShareState.emojiMode ?? false;
+let exportQuality: ExportQuality = initialShareState.exportQuality ?? "archive";
 let inferenceTimer = 0;
 let inferenceGeneration = 0;
 let clearMessageTimer = 0;
 let forcedInferenceRetryTimer = 0;
+let shareStateTimer = 0;
+let preloadedDepthBackend = "";
 
 const stats: RuntimeStats = {
   renderFPS: 0,
@@ -52,14 +65,22 @@ const stats: RuntimeStats = {
   quality: qualityLabel(params),
   pipeline: pipelineLabel(params.depthBackend),
   message: "",
+  loading: false,
+  loadingLabel: "",
 };
 
-elements.presetSelect.value = initialPresetId;
+elements.presetSelect.value = currentPresetId;
 elements.demoSceneSelect.value = currentDemoSceneId;
 
-bindParamControls(elements, params, () => sync());
+bindParamControls(elements, params, () => {
+  sync();
+  preloadDepthBackend();
+  updateShareStateSoon();
+});
 bindEvents();
 startInferenceLoop(true);
+preloadDepthBackend();
+sync();
 
 function bindEvents(): void {
   elements.imageInput.addEventListener("click", () => {
@@ -88,6 +109,11 @@ function bindEvents(): void {
     }
   });
 
+  elements.blankButton.addEventListener("click", async () => {
+    await setSource(createBlankSource());
+    updateShareStateSoon();
+  });
+
   elements.webcamButton.addEventListener("click", async () => {
     await withUiError("Webcam permission or playback failed.", async () => {
       await setSource(await createWebcamSource());
@@ -96,11 +122,13 @@ function bindEvents(): void {
 
   elements.demoButton.addEventListener("click", async () => {
     await setSource(createDemoSource(currentDemoSceneId));
+    updateShareStateSoon();
   });
 
   elements.demoSceneSelect.addEventListener("change", async () => {
     currentDemoSceneId = readDemoScene(elements);
     await setSource(createDemoSource(currentDemoSceneId));
+    updateShareStateSoon();
   });
 
   elements.screenshotButton.addEventListener("click", async () => {
@@ -113,11 +141,11 @@ function bindEvents(): void {
     if (recorder.recording) {
       recorder.stop();
     } else {
-      const error = recorder.start(elements.canvas, 30);
+      const error = recorder.start(elements.canvas, 30, exportQuality);
       if (error) {
         setMessage(error);
       } else {
-        setMessage("Recording started. It will stop automatically after 15 seconds.");
+        setMessage(`${exportQuality === "archive" ? "Archive" : "Web"} recording started. It will stop automatically after 15 seconds.`);
       }
     }
     sync();
@@ -125,6 +153,44 @@ function bindEvents(): void {
 
   elements.presetSelect.addEventListener("change", () => {
     applyPreset(elements.presetSelect.value);
+    updateShareStateSoon();
+  });
+
+  elements.exportQualitySelect.addEventListener("change", () => {
+    exportQuality = elements.exportQualitySelect.value as ExportQuality;
+    sync();
+    updateShareStateSoon();
+  });
+
+  elements.emojiMode.addEventListener("change", () => {
+    emojiMode = elements.emojiMode.checked;
+    sync();
+    updateShareStateSoon();
+  });
+
+  elements.performanceButton.addEventListener("click", () => {
+    performanceMode = !performanceMode;
+    sync();
+    updateShareStateSoon();
+  });
+
+  elements.shareButton.addEventListener("click", async () => {
+    updateShareState();
+    await navigator.clipboard?.writeText(window.location.href).catch(() => undefined);
+    setMessage("Share URL updated and copied when clipboard access is available.");
+  });
+
+  window.addEventListener("keydown", (event) => {
+    if (event.key.toLowerCase() === "p" && !(event.target instanceof HTMLInputElement)) {
+      performanceMode = !performanceMode;
+      sync();
+      updateShareStateSoon();
+    }
+    if (event.key.toLowerCase() === "e" && !(event.target instanceof HTMLInputElement)) {
+      emojiMode = !emojiMode;
+      sync();
+      updateShareStateSoon();
+    }
   });
 
   window.addEventListener("beforeunload", () => {
@@ -146,6 +212,7 @@ async function setSource(next: MediaSourceHandle): Promise<void> {
   renderer.restartIntro();
   stats.sourceKind = source.kind;
   startInferenceLoop(true);
+  preloadDepthBackend();
   sync();
 }
 
@@ -158,6 +225,7 @@ function applyPreset(id: string): void {
   smoother.reset();
   renderer.restartIntro();
   startInferenceLoop(true);
+  preloadDepthBackend();
   sync();
 }
 
@@ -166,6 +234,7 @@ function animationLoop(now: number): void {
   stats.recording = recorder.recording;
   renderInputPreview();
   renderer.render(params, stats);
+  emojiMosaic.render(emojiMode);
 
   if (now - lastStatsSync > 160) {
     sync();
@@ -240,10 +309,6 @@ async function runInference(force: boolean, generation: number): Promise<boolean
     return true;
   }
 
-  if (depthPipeline.busy) {
-    return false;
-  }
-
   const element = source.element;
   if (!element) {
     return true;
@@ -260,12 +325,33 @@ async function runInference(force: boolean, generation: number): Promise<boolean
   adaptQuality();
 
   const sample = sampler.sample(element, params.gridWidth, params.gridHeight, source.kind);
+  if (source.kind === "blank") {
+    const depth = createBlankDepth(sample, performance.now());
+    renderer.setFrame(sample, depth, params);
+    emojiMosaic.setFrame(sample, depth);
+    stats.backend = "cpu-heuristic";
+    stats.inferenceMs = 0;
+    stats.inferenceFPS = inferenceMeter.tick();
+    stats.sourceKind = source.kind;
+    stats.quality = qualityLabel(params);
+    stats.pipeline = "procedural blank point field";
+    return true;
+  }
+
+  if (depthPipeline.busy) {
+    return false;
+  }
+
   if (isDepthAnythingBackend(params.depthBackend) && stats.backend !== params.depthBackend) {
     setMessage(`${depthBackendLabel(params.depthBackend)} is loading. First run downloads the ONNX model.`);
   }
 
   let result;
   try {
+    setLoading(
+      isDepthAnythingBackend(params.depthBackend) && stats.backend !== params.depthBackend,
+      `${depthBackendLabel(params.depthBackend)} prepares local browser inference. Media stays on this device.`,
+    );
     result = await depthPipeline.estimate(sample, params.depthBackend);
   } catch (error) {
     if (generation !== inferenceGeneration) {
@@ -277,6 +363,8 @@ async function runInference(force: boolean, generation: number): Promise<boolean
     params.depthBackend = "worker-cpu-heuristic";
     smoother.reset();
     result = await depthPipeline.estimate(sample, params.depthBackend);
+  } finally {
+    setLoading(false);
   }
 
   if (generation !== inferenceGeneration) {
@@ -285,6 +373,7 @@ async function runInference(force: boolean, generation: number): Promise<boolean
 
   const smoothed = smoother.smooth(result.depth, params.temporalSmoothing);
   renderer.setFrame(sample, smoothed, params);
+  emojiMosaic.setFrame(sample, smoothed);
 
   stats.backend = result.backend;
   stats.inferenceMs = result.inferenceMs;
@@ -317,7 +406,27 @@ function sync(): void {
   stats.recording = recorder.recording;
   stats.recordingSupported = CanvasRecorder.isSupported(elements.canvas);
   stats.quality = qualityLabel(params);
-  syncView(elements, params, stats);
+  syncView(elements, params, stats, { emojiMode, exportQuality, performanceMode });
+}
+
+function updateShareStateSoon(): void {
+  window.clearTimeout(shareStateTimer);
+  shareStateTimer = window.setTimeout(updateShareState, 180);
+}
+
+function updateShareState(): void {
+  const nextHash = encodeShareableState({
+    demoSceneId: currentDemoSceneId,
+    emojiMode,
+    exportQuality,
+    performanceMode,
+    presetId: currentPresetId,
+    sourceKind: source.kind,
+    params,
+  });
+  if (window.location.hash !== nextHash) {
+    history.replaceState(null, "", nextHash);
+  }
 }
 
 function pipelineLabel(backend: RuntimeStats["backend"]): string {
@@ -337,6 +446,43 @@ function inferenceIntervalMs(): number {
   return requested;
 }
 
+function preloadDepthBackend(): void {
+  if (!isDepthAnythingBackend(params.depthBackend) || preloadedDepthBackend === params.depthBackend) {
+    return;
+  }
+
+  const element = source.element;
+  if (!element) {
+    return;
+  }
+
+  preloadedDepthBackend = params.depthBackend;
+  window.setTimeout(() => {
+    if (depthPipeline.busy || !isDepthAnythingBackend(params.depthBackend)) {
+      return;
+    }
+
+    const backend = params.depthBackend;
+    const sample = sampler.sample(element, 192, 192, source.kind);
+    setLoading(true, `${depthBackendLabel(backend)} is preparing local browser inference.`);
+    void depthPipeline
+      .estimate(sample, backend)
+      .then((result) => {
+        stats.backend = result.backend;
+        stats.pipeline = pipelineLabel(result.backend);
+        stats.inferenceMs = result.inferenceMs;
+      })
+      .catch((error) => {
+        preloadedDepthBackend = "";
+        const detail = error instanceof Error ? error.message : String(error);
+        setMessage(`${depthBackendLabel(backend)} preload failed. ${detail}`);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, 450);
+}
+
 async function withUiError(label: string, action: () => Promise<void>): Promise<void> {
   try {
     await action();
@@ -354,6 +500,29 @@ function setMessage(message: string): void {
     stats.message = "";
     sync();
   }, 6000);
+}
+
+function setLoading(loading: boolean, label = ""): void {
+  stats.loading = loading;
+  stats.loadingLabel = label;
+  sync();
+}
+
+function createBlankDepth(sample: FrameSample, now: number): Float32Array {
+  const depth = new Float32Array(sample.width * sample.height);
+  const centerX = (sample.width - 1) * 0.5;
+  const centerY = (sample.height - 1) * 0.5;
+  const maxDistance = Math.hypot(centerX, centerY) || 1;
+
+  for (let y = 0; y < sample.height; y += 1) {
+    for (let x = 0; x < sample.width; x += 1) {
+      const distance = Math.hypot(x - centerX, y - centerY) / maxDistance;
+      const wave = Math.sin(x * 0.065 + now * 0.0012) * Math.cos(y * 0.052 + now * 0.0009);
+      depth[y * sample.width + x] = Math.max(0, Math.min(1, 0.46 + wave * 0.035 - distance * 0.06));
+    }
+  }
+
+  return depth;
 }
 
 function renderInputPreview(): void {

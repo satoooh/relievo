@@ -20,11 +20,15 @@ describe("selectRecordingFormat", () => {
 });
 
 describe("estimateRecordingVideoBitsPerSecond", () => {
-  it("allocates substantially more bitrate for high-resolution point-cloud captures", () => {
+  it("allocates substantially more bitrate for high-resolution point-field captures", () => {
     expect(estimateRecordingVideoBitsPerSecond(3450, 2340, 30)).toBe(53_281_800);
   });
 
   it("keeps low-resolution captures above a useful quality floor", () => {
     expect(estimateRecordingVideoBitsPerSecond(1280, 720, 30)).toBe(16_000_000);
+  });
+
+  it("supports lighter web exports for quick sharing", () => {
+    expect(estimateRecordingVideoBitsPerSecond(1280, 720, 30, "web")).toBe(6_000_000);
   });
 });

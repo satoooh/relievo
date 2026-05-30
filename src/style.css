@@ -28,6 +28,36 @@ select {
   font: inherit;
 }
 
+@keyframes relievo-load {
+  0% {
+    transform: translateX(-120%);
+  }
+  50% {
+    transform: translateX(70%);
+  }
+  100% {
+    transform: translateX(220%);
+  }
+}
+
+.is-performance #chrome,
+.is-performance #controls-panel,
+.is-performance #input-preview-shell,
+.is-performance .lil-gui.root {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(8px);
+}
+
+#chrome,
+#controls-panel,
+#input-preview-shell,
+.lil-gui.root {
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
 .lil-gui.root {
   --background-color: rgba(15, 18, 24, 0.92);
   --widget-color: rgba(255, 255, 255, 0.09);

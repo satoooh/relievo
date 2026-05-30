@@ -77,6 +77,37 @@ export function createDemoCanvas(sceneId: DemoSceneId, width = 1280, height = 72
   };
 }
 
+export function createBlankCanvas(width = 1024, height = 1024): DemoCanvasHandle {
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  canvas.width = width;
+  canvas.height = height;
+
+  if (!context) {
+    return { canvas, stop: () => undefined };
+  }
+
+  let animationFrame = 0;
+  let stopped = false;
+
+  const animate = (now: number) => {
+    if (stopped) {
+      return;
+    }
+    drawBlankPointField(context, width, height, now);
+    animationFrame = window.requestAnimationFrame(animate);
+  };
+  animationFrame = window.requestAnimationFrame(animate);
+
+  return {
+    canvas,
+    stop: () => {
+      stopped = true;
+      window.cancelAnimationFrame(animationFrame);
+    },
+  };
+}
+
 function loadDemoImage(path: string): HTMLImageElement {
   const image = new Image();
   image.decoding = "async";
@@ -143,4 +174,33 @@ function drawFallback(context: CanvasRenderingContext2D, width: number, height: 
   gradient.addColorStop(1, "#f0b66a");
   context.fillStyle = gradient;
   context.fillRect(0, 0, width, height);
+}
+
+function drawBlankPointField(context: CanvasRenderingContext2D, width: number, height: number, now: number): void {
+  context.clearRect(0, 0, width, height);
+  context.fillStyle = "#050607";
+  context.fillRect(0, 0, width, height);
+
+  const margin = width * 0.11;
+  const size = width - margin * 2;
+  const columns = 72;
+  const rows = 72;
+  const step = size / (columns - 1);
+  const pulse = (Math.sin(now * 0.0007) + 1) * 0.5;
+
+  context.save();
+  context.translate(margin, margin);
+  context.fillStyle = `rgba(180, 232, 224, ${0.32 + pulse * 0.08})`;
+
+  for (let y = 0; y < rows; y += 1) {
+    for (let x = 0; x < columns; x += 1) {
+      const wave = Math.sin(x * 0.24 + now * 0.0011) * Math.sin(y * 0.18 + now * 0.0009);
+      const jitter = wave * 0.62;
+      context.beginPath();
+      context.arc(x * step + jitter, y * step - jitter, 1.35, 0, Math.PI * 2);
+      context.fill();
+    }
+  }
+
+  context.restore();
 }

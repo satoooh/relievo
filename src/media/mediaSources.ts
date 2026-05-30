@@ -1,5 +1,14 @@
 import type { DemoSceneId, MediaSourceHandle } from "../types";
-import { createDemoCanvas } from "./frameSampler";
+import { createBlankCanvas, createDemoCanvas } from "./frameSampler";
+
+export function createBlankSource(): MediaSourceHandle {
+  const handle = createBlankCanvas();
+  return {
+    kind: "blank",
+    element: handle.canvas,
+    stop: handle.stop,
+  };
+}
 
 export function createDemoSource(sceneId: DemoSceneId): MediaSourceHandle {
   const handle = createDemoCanvas(sceneId);

@@ -1,4 +1,4 @@
-export type SourceKind = "demo" | "image" | "video" | "webcam";
+export type SourceKind = "blank" | "demo" | "image" | "video" | "webcam";
 
 export type ScanDirection = "left-right" | "right-left" | "top-bottom" | "bottom-top";
 
@@ -41,6 +41,8 @@ export interface ReliefParams {
   glitchAmount: number;
 }
 
+export type ExportQuality = "web" | "archive";
+
 export interface ReliefPreset {
   id: string;
   name: string;
@@ -76,6 +78,8 @@ export interface RuntimeStats {
   quality: string;
   pipeline: string;
   message: string;
+  loading: boolean;
+  loadingLabel: string;
 }
 
 export interface MediaSourceHandle {

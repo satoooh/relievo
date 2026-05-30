@@ -1,11 +1,24 @@
 import { depthBackendLabel, depthBackendOptions } from "../depth/depthBackends";
 import { demoScenes } from "../media/demoScenes";
-import type { DemoSceneId, DepthBackendSelection, ReliefParams, RuntimeStats, ScanDirection } from "../types";
+import type {
+  DemoSceneId,
+  DepthBackendSelection,
+  ExportQuality,
+  ReliefParams,
+  RuntimeStats,
+  ScanDirection,
+} from "../types";
 import { presets } from "../presets";
 
 export interface ViewElements {
+  shell: HTMLElement;
   canvas: HTMLCanvasElement;
+  emojiCanvas: HTMLCanvasElement;
   inputPreviewCanvas: HTMLCanvasElement;
+  chrome: HTMLElement;
+  controlsPanel: HTMLElement;
+  loadingOverlay: HTMLElement;
+  blankButton: HTMLButtonElement;
   imageInput: HTMLInputElement;
   videoInput: HTMLInputElement;
   webcamButton: HTMLButtonElement;
@@ -15,6 +28,9 @@ export interface ViewElements {
   recordButton: HTMLButtonElement;
   presetSelect: HTMLSelectElement;
   depthBackendSelect: HTMLSelectElement;
+  exportQualitySelect: HTMLSelectElement;
+  performanceButton: HTMLButtonElement;
+  shareButton: HTMLButtonElement;
   status: HTMLElement;
   controls: Record<keyof Pick<
     ReliefParams,
@@ -41,6 +57,7 @@ export interface ViewElements {
     | "glitchAmount"
   >, HTMLInputElement>;
   adaptiveQuality: HTMLInputElement;
+  emojiMode: HTMLInputElement;
   monochrome: HTMLInputElement;
   scanDirection: HTMLSelectElement;
 }
@@ -76,24 +93,36 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
     <main class="relative h-full w-full overflow-hidden bg-[#08090b] text-white">
       <section class="absolute inset-0" aria-label="Relievo viewport">
         <canvas id="relievo-canvas" class="h-full w-full"></canvas>
+        <canvas id="emoji-canvas" class="pointer-events-none absolute inset-0 hidden h-full w-full mix-blend-screen"></canvas>
       </section>
 
-      <div class="pointer-events-none absolute bottom-4 right-4 z-20 hidden w-[260px] overflow-hidden rounded border border-white/16 bg-black/44 shadow-2xl backdrop-blur-md md:block">
+      <div id="input-preview-shell" class="pointer-events-none absolute bottom-4 right-4 z-20 hidden w-[260px] overflow-hidden rounded border border-white/16 bg-black/44 shadow-2xl backdrop-blur-md md:block">
         <canvas id="input-preview-canvas" class="block aspect-video w-full"></canvas>
       </div>
 
-      <header class="pointer-events-none absolute left-0 right-0 top-0 z-20 flex flex-col items-start justify-between gap-3 p-4 md:flex-row md:gap-4 md:p-5">
+      <header id="chrome" class="pointer-events-none absolute left-0 right-0 top-0 z-20 flex flex-col items-start justify-between gap-3 p-4 md:flex-row md:gap-4 md:p-5">
         <div class="max-w-[360px] rounded border border-white/8 bg-black/30 px-3 py-2 text-white/74 backdrop-blur-md">
           <h1 class="text-lg font-semibold leading-none tracking-normal">Relievo</h1>
           <p class="mt-1 text-xs leading-5">
-            Dark point relief renderer. 2.5D, not reconstruction.
+            Browser depth relief instrument.
           </p>
         </div>
         <div id="status" class="pointer-events-auto w-full max-w-[340px] rounded border border-white/14 bg-black/46 px-3 py-2 text-xs leading-5 text-white/74 backdrop-blur-md md:min-w-[220px] md:max-w-none"></div>
       </header>
 
-      <aside class="absolute bottom-0 left-0 top-auto z-20 max-h-[58vh] w-full overflow-y-auto border-t border-white/12 bg-black/54 p-3 backdrop-blur-xl md:bottom-5 md:left-5 md:top-auto md:max-h-[72vh] md:w-[360px] md:border md:p-4">
+      <div id="loading-overlay" class="pointer-events-none absolute inset-0 z-30 hidden items-center justify-center bg-black/44 backdrop-blur-sm">
+        <div class="w-[min(420px,calc(100vw-32px))] border border-white/16 bg-black/70 px-5 py-4 text-white shadow-2xl">
+          <div class="h-1 overflow-hidden rounded bg-white/12">
+            <div class="h-full w-1/2 animate-[relievo-load_1.4s_ease-in-out_infinite] bg-[#6ee7d8]"></div>
+          </div>
+          <div class="mt-4 text-sm font-medium">Loading depth model</div>
+          <div id="loading-label" class="mt-1 text-xs leading-5 text-white/64"></div>
+        </div>
+      </div>
+
+      <aside id="controls-panel" class="absolute bottom-0 left-0 top-auto z-20 max-h-[58vh] w-full overflow-y-auto border-t border-white/12 bg-black/54 p-3 backdrop-blur-xl md:bottom-5 md:left-5 md:top-auto md:max-h-[72vh] md:w-[360px] md:border md:p-4">
         <div class="grid grid-cols-2 gap-2">
+          <button id="blank-button" class="rounded border border-white/12 bg-white/8 px-3 py-2 text-sm hover:bg-white/14">Blank</button>
           <label class="cursor-pointer rounded border border-white/12 bg-white/8 px-3 py-2 text-center text-sm hover:bg-white/14">
             Image
             <input id="image-input" type="file" accept="image/*" class="sr-only" />
@@ -102,8 +131,8 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
             Video
             <input id="video-input" type="file" accept="video/*" class="sr-only" />
           </label>
-          <button id="webcam-button" class="rounded border border-white/12 bg-white/8 px-3 py-2 text-sm hover:bg-white/14">Webcam</button>
           <button id="demo-button" class="rounded border border-white/12 bg-white/8 px-3 py-2 text-sm hover:bg-white/14">Demo</button>
+          <button id="webcam-button" class="rounded border border-white/12 bg-white/8 px-3 py-2 text-sm hover:bg-white/14">Webcam</button>
         </div>
 
         <select id="demo-scene-select" class="mt-2 w-full rounded border border-white/12 bg-[#12161d] px-3 py-2 text-sm text-white"></select>
@@ -116,6 +145,15 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
 
         <select id="depth-backend-select" class="mt-2 w-full rounded border border-white/12 bg-[#12161d] px-3 py-2 text-sm text-white"></select>
 
+        <div class="mt-2 grid grid-cols-[1fr_auto_auto] gap-2">
+          <select id="export-quality-select" class="min-w-0 rounded border border-white/12 bg-[#12161d] px-3 py-2 text-sm text-white">
+            <option value="archive">Archive export</option>
+            <option value="web">Web export</option>
+          </select>
+          <button id="share-button" class="rounded border border-white/12 bg-white/8 px-3 py-2 text-sm hover:bg-white/14">Share</button>
+          <button id="performance-button" class="rounded border border-white/12 bg-white/8 px-3 py-2 text-sm hover:bg-white/14">Perform</button>
+        </div>
+
         <div id="slider-panel" class="mt-3 grid grid-cols-1 gap-2"></div>
 
         <div class="mt-3 grid grid-cols-2 gap-2 text-sm">
@@ -126,6 +164,10 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
           <label class="flex items-center gap-2 rounded border border-white/12 bg-white/7 px-3 py-2">
             <input id="monochrome" type="checkbox" class="h-4 w-4" />
             Mono
+          </label>
+          <label class="flex items-center gap-2 rounded border border-white/12 bg-white/7 px-3 py-2">
+            <input id="emoji-mode" type="checkbox" class="h-4 w-4" />
+            Emoji
           </label>
         </div>
 
@@ -171,6 +213,7 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
   }
 
   const adaptiveQuality = mustGet<HTMLInputElement>("adaptive-quality");
+  const emojiMode = mustGet<HTMLInputElement>("emoji-mode");
   const monochrome = mustGet<HTMLInputElement>("monochrome");
   const scanDirection = mustGet<HTMLSelectElement>("scan-direction");
   adaptiveQuality.checked = params.adaptiveQuality;
@@ -179,8 +222,14 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
   depthBackendSelect.value = params.depthBackend;
 
   return {
+    shell: root.querySelector("main")!,
     canvas: mustGet<HTMLCanvasElement>("relievo-canvas"),
+    emojiCanvas: mustGet<HTMLCanvasElement>("emoji-canvas"),
     inputPreviewCanvas: mustGet<HTMLCanvasElement>("input-preview-canvas"),
+    chrome: mustGet<HTMLElement>("chrome"),
+    controlsPanel: mustGet<HTMLElement>("controls-panel"),
+    loadingOverlay: mustGet<HTMLElement>("loading-overlay"),
+    blankButton: mustGet<HTMLButtonElement>("blank-button"),
     imageInput: mustGet<HTMLInputElement>("image-input"),
     videoInput: mustGet<HTMLInputElement>("video-input"),
     webcamButton: mustGet<HTMLButtonElement>("webcam-button"),
@@ -190,15 +239,24 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
     recordButton: mustGet<HTMLButtonElement>("record-button"),
     presetSelect,
     depthBackendSelect,
+    exportQualitySelect: mustGet<HTMLSelectElement>("export-quality-select"),
+    performanceButton: mustGet<HTMLButtonElement>("performance-button"),
+    shareButton: mustGet<HTMLButtonElement>("share-button"),
     status: mustGet<HTMLElement>("status"),
     controls,
     adaptiveQuality,
+    emojiMode,
     monochrome,
     scanDirection,
   };
 }
 
-export function syncView(elements: ViewElements, params: ReliefParams, stats: RuntimeStats): void {
+export function syncView(
+  elements: ViewElements,
+  params: ReliefParams,
+  stats: RuntimeStats,
+  options: { emojiMode: boolean; exportQuality: ExportQuality; performanceMode: boolean },
+): void {
   for (const [key, control] of Object.entries(elements.controls) as Array<[SliderKey, HTMLInputElement]>) {
     control.value = String(params[key]);
     const output = document.getElementById(`control-${key}-value`);
@@ -208,9 +266,19 @@ export function syncView(elements: ViewElements, params: ReliefParams, stats: Ru
   }
 
   elements.adaptiveQuality.checked = params.adaptiveQuality;
+  elements.emojiMode.checked = options.emojiMode;
   elements.monochrome.checked = params.monochrome;
   elements.scanDirection.value = params.scanDirection;
   elements.depthBackendSelect.value = params.depthBackend;
+  elements.exportQualitySelect.value = options.exportQuality;
+  elements.performanceButton.textContent = options.performanceMode ? "Edit" : "Perform";
+  elements.shell.classList.toggle("is-performance", options.performanceMode);
+  elements.loadingOverlay.classList.toggle("hidden", !stats.loading);
+  elements.loadingOverlay.classList.toggle("flex", stats.loading);
+  const loadingLabel = document.getElementById("loading-label");
+  if (loadingLabel) {
+    loadingLabel.textContent = stats.loadingLabel;
+  }
   elements.recordButton.textContent = stats.recording ? "STOP" : "REC";
   elements.recordButton.disabled = !stats.recordingSupported;
   elements.recordButton.className = stats.recording

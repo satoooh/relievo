@@ -96,6 +96,8 @@ export class ReliefRenderer {
         quality: "",
         pipeline: "",
         message: "",
+        loading: false,
+        loadingLabel: "",
       });
       this.animationFrame = requestAnimationFrame(loop);
     };

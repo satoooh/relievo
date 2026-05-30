@@ -1,3 +1,5 @@
+import type { ExportQuality } from "../types";
+
 export function downloadCanvasPNG(canvas: HTMLCanvasElement, basename: string): Promise<void> {
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
@@ -26,7 +28,7 @@ export class CanvasRecorder {
     return typeof MediaRecorder !== "undefined" && typeof canvas.captureStream === "function";
   }
 
-  start(canvas: HTMLCanvasElement, fps: number, maxDurationMs = 15_000): string | undefined {
+  start(canvas: HTMLCanvasElement, fps: number, quality: ExportQuality, maxDurationMs = 15_000): string | undefined {
     if (this.recording) {
       return undefined;
     }
@@ -38,7 +40,7 @@ export class CanvasRecorder {
     this.chunks = [];
     const stream = canvas.captureStream(fps);
     const formats = getSupportedRecordingFormats();
-    const videoBitsPerSecond = estimateRecordingVideoBitsPerSecond(canvas.width, canvas.height, fps);
+    const videoBitsPerSecond = estimateRecordingVideoBitsPerSecond(canvas.width, canvas.height, fps, quality);
 
     const recorder = createMediaRecorder(stream, formats, videoBitsPerSecond);
     if (!recorder) {
@@ -119,11 +121,16 @@ export function selectRecordingFormat(isTypeSupported: (mimeType: string) => boo
   return recordingFormatCandidates.find((format) => isTypeSupported(format.mimeType)) ?? fallbackRecordingFormat;
 }
 
-export function estimateRecordingVideoBitsPerSecond(width: number, height: number, fps: number): number {
+export function estimateRecordingVideoBitsPerSecond(
+  width: number,
+  height: number,
+  fps: number,
+  quality: ExportQuality = "archive",
+): number {
   const pixelsPerSecond = Math.max(width, 1) * Math.max(height, 1) * Math.max(fps, 1);
-  const targetBitsPerPixel = 0.22;
-  const minBitrate = 16_000_000;
-  const maxBitrate = 90_000_000;
+  const targetBitsPerPixel = quality === "archive" ? 0.22 : 0.08;
+  const minBitrate = quality === "archive" ? 16_000_000 : 6_000_000;
+  const maxBitrate = quality === "archive" ? 90_000_000 : 24_000_000;
 
   return Math.min(maxBitrate, Math.max(minBitrate, Math.round(pixelsPerSecond * targetBitsPerPixel)));
 }
