@@ -122,63 +122,66 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
         </div>
       </div>
 
-      <aside id="controls-panel" class="absolute bottom-0 left-0 top-auto z-20 max-h-[58vh] w-full overflow-y-auto border-t border-white/12 bg-black/54 p-3 backdrop-blur-xl md:bottom-5 md:left-5 md:top-auto md:max-h-[72vh] md:w-[360px] md:border md:p-4">
-        <div class="grid grid-cols-2 gap-2">
-          <button id="blank-button" class="rounded border border-white/12 bg-white/8 px-3 py-2 text-sm hover:bg-white/14">Blank</button>
-          <label class="cursor-pointer rounded border border-white/12 bg-white/8 px-3 py-2 text-center text-sm hover:bg-white/14">
-            Image
+      <aside id="controls-panel" class="absolute bottom-0 left-0 top-auto z-20 max-h-[58vh] w-full overflow-y-auto border-t border-white/12 bg-black/54 p-2 backdrop-blur-xl md:bottom-5 md:left-5 md:top-auto md:max-h-[72vh] md:w-[312px] md:border md:p-3">
+        <div class="grid grid-cols-5 gap-1">
+          <button id="blank-button" class="ui-icon-button" type="button" title="Blank field" aria-label="Blank field"><span aria-hidden="true">○</span></button>
+          <label class="ui-icon-button cursor-pointer" title="Load image" aria-label="Load image">
+            <span aria-hidden="true">▧</span>
             <input id="image-input" type="file" accept="image/*" class="sr-only" />
           </label>
-          <label class="cursor-pointer rounded border border-white/12 bg-white/8 px-3 py-2 text-center text-sm hover:bg-white/14">
-            Video
+          <label class="ui-icon-button cursor-pointer" title="Load video" aria-label="Load video">
+            <span aria-hidden="true">▶</span>
             <input id="video-input" type="file" accept="video/*" class="sr-only" />
           </label>
-          <button id="demo-button" class="rounded border border-white/12 bg-white/8 px-3 py-2 text-sm hover:bg-white/14">Demo</button>
-          <button id="webcam-button" class="rounded border border-white/12 bg-white/8 px-3 py-2 text-sm hover:bg-white/14">Webcam</button>
+          <button id="webcam-button" class="ui-icon-button" type="button" title="Webcam" aria-label="Webcam"><span aria-hidden="true">◎</span></button>
+          <button id="demo-button" class="ui-icon-button" type="button" title="Demo scene" aria-label="Demo scene"><span aria-hidden="true">✦</span></button>
         </div>
 
-        <select id="demo-scene-select" class="mt-2 w-full rounded border border-white/12 bg-[#12161d] px-3 py-2 text-sm text-white"></select>
-
-        <div class="mt-3 grid grid-cols-[1fr_auto_auto] gap-2">
-          <select id="preset-select" class="min-w-0 rounded border border-white/12 bg-[#12161d] px-3 py-2 text-sm text-white"></select>
-          <button id="screenshot-button" class="rounded border border-white/12 bg-white px-3 py-2 text-sm font-medium text-black hover:bg-white/88">PNG</button>
-          <button id="record-button" class="rounded border border-white/12 bg-white/8 px-3 py-2 text-sm hover:bg-white/14">REC</button>
+        <div class="mt-2 grid grid-cols-[1fr_auto_auto_auto] gap-1">
+          <select id="demo-scene-select" class="min-w-0 rounded border border-white/12 bg-[#12161d] px-2 py-2 text-xs text-white"></select>
+          <button id="screenshot-button" class="ui-icon-button bg-white text-black hover:bg-white/88" type="button" title="Capture PNG" aria-label="Capture PNG"><span aria-hidden="true">⇩</span></button>
+          <button id="record-button" class="ui-icon-button" type="button" title="Record clip" aria-label="Record clip"><span aria-hidden="true">●</span></button>
+          <button id="share-button" class="ui-icon-button" type="button" title="Share state" aria-label="Share state"><span aria-hidden="true">↗</span></button>
         </div>
 
-        <select id="depth-backend-select" class="mt-2 w-full rounded border border-white/12 bg-[#12161d] px-3 py-2 text-sm text-white"></select>
-        <select id="quality-mode-select" class="mt-2 w-full rounded border border-white/12 bg-[#12161d] px-3 py-2 text-sm text-white">
+        <select id="preset-select" class="hidden"></select>
+
+        <select id="depth-backend-select" class="mt-2 w-full rounded border border-white/12 bg-[#12161d] px-2 py-2 text-xs text-white"></select>
+        <select id="quality-mode-select" class="mt-1 w-full rounded border border-white/12 bg-[#12161d] px-2 py-2 text-xs text-white">
           <option value="visual">Visual FPS priority</option>
           <option value="balanced">Balanced</option>
           <option value="quality">Depth quality priority</option>
         </select>
 
-        <div class="mt-2 grid grid-cols-[1fr_auto_auto] gap-2">
-          <select id="export-quality-select" class="min-w-0 rounded border border-white/12 bg-[#12161d] px-3 py-2 text-sm text-white">
+        <div class="mt-1 grid grid-cols-[1fr_auto] gap-1">
+          <select id="export-quality-select" class="min-w-0 rounded border border-white/12 bg-[#12161d] px-2 py-2 text-xs text-white">
             <option value="archive">Archive export</option>
             <option value="web">Web export</option>
           </select>
-          <button id="share-button" class="rounded border border-white/12 bg-white/8 px-3 py-2 text-sm hover:bg-white/14">Share</button>
-          <button id="performance-button" class="rounded border border-white/12 bg-white/8 px-3 py-2 text-sm hover:bg-white/14">Perform</button>
+          <button id="performance-button" class="ui-icon-button" type="button" title="Performance mode" aria-label="Performance mode"><span aria-hidden="true">⛶</span></button>
         </div>
 
-        <div id="slider-panel" class="mt-3 grid grid-cols-1 gap-2"></div>
+        <details class="mt-2 rounded border border-white/10 bg-white/5">
+          <summary class="cursor-pointer px-2 py-2 text-xs text-white/74">Fine tune</summary>
+          <div id="slider-panel" class="grid grid-cols-1 gap-1 px-2 pb-2"></div>
+        </details>
 
-        <div class="mt-3 grid grid-cols-2 gap-2 text-sm">
-          <label class="flex items-center gap-2 rounded border border-white/12 bg-white/7 px-3 py-2">
+        <div class="mt-2 grid grid-cols-3 gap-1 text-xs">
+          <label class="ui-toggle" title="Adaptive quality">
             <input id="adaptive-quality" type="checkbox" class="h-4 w-4" />
-            Adaptive
+            <span>Auto</span>
           </label>
-          <label class="flex items-center gap-2 rounded border border-white/12 bg-white/7 px-3 py-2">
+          <label class="ui-toggle" title="Monochrome">
             <input id="monochrome" type="checkbox" class="h-4 w-4" />
             Mono
           </label>
-          <label class="flex items-center gap-2 rounded border border-white/12 bg-white/7 px-3 py-2">
+          <label class="ui-toggle" title="Emoji glyph layer">
             <input id="emoji-mode" type="checkbox" class="h-4 w-4" />
             Emoji
           </label>
         </div>
 
-        <select id="scan-direction" class="mt-2 w-full rounded border border-white/12 bg-[#12161d] px-3 py-2 text-sm text-white">
+        <select id="scan-direction" class="mt-1 w-full rounded border border-white/12 bg-[#12161d] px-2 py-2 text-xs text-white">
           <option value="left-right">Scan left to right</option>
           <option value="right-left">Scan right to left</option>
           <option value="top-bottom">Scan top to bottom</option>
@@ -281,7 +284,9 @@ export function syncView(
   elements.depthBackendSelect.value = params.depthBackend;
   elements.qualityModeSelect.value = params.qualityMode;
   elements.exportQualitySelect.value = options.exportQuality;
-  elements.performanceButton.textContent = options.performanceMode ? "Edit" : "Perform";
+  elements.performanceButton.innerHTML = `<span aria-hidden="true">${options.performanceMode ? "×" : "⛶"}</span>`;
+  elements.performanceButton.title = options.performanceMode ? "Show controls" : "Performance mode";
+  elements.performanceButton.setAttribute("aria-label", options.performanceMode ? "Show controls" : "Performance mode");
   elements.shell.classList.toggle("is-performance", options.performanceMode);
   elements.loadingOverlay.classList.toggle("hidden", !stats.loading);
   elements.loadingOverlay.classList.toggle("flex", stats.loading);
@@ -290,12 +295,17 @@ export function syncView(
     loadingLabel.textContent = stats.loadingLabel;
   }
   elements.recordButton.textContent = stats.recording ? "STOP" : "REC";
+  elements.recordButton.title = stats.recording ? "Stop recording" : "Record clip";
+  elements.recordButton.setAttribute("aria-label", stats.recording ? "Stop recording" : "Record clip");
   elements.recordButton.disabled = !stats.recordingSupported;
   elements.recordButton.className = stats.recording
-    ? "rounded border border-red-300/50 bg-red-400 px-3 py-2 text-sm font-medium text-black hover:bg-red-300"
+    ? "ui-icon-button border-red-300/50 bg-red-400 text-xs font-medium text-black hover:bg-red-300"
     : stats.recordingSupported
-      ? "rounded border border-white/12 bg-white/8 px-3 py-2 text-sm hover:bg-white/14"
-      : "cursor-not-allowed rounded border border-white/8 bg-white/4 px-3 py-2 text-sm text-white/42";
+      ? "ui-icon-button"
+      : "ui-icon-button cursor-not-allowed border-white/8 bg-white/4 text-white/42";
+  if (!stats.recording) {
+    elements.recordButton.innerHTML = `<span aria-hidden="true">●</span>`;
+  }
   elements.status.innerHTML = `
     <div>Source: ${stats.sourceKind}</div>
     <div>Render: ${stats.renderFPS.toFixed(1)} FPS</div>

@@ -28,6 +28,42 @@ select {
   font: inherit;
 }
 
+.ui-icon-button {
+  display: inline-flex;
+  min-width: 0;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 6px;
+  background: rgb(255 255 255 / 0.08);
+  padding: 0 10px;
+  color: currentColor;
+  font-size: 15px;
+  line-height: 1;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
+}
+
+.ui-icon-button:hover {
+  background: rgb(255 255 255 / 0.14);
+}
+
+.ui-toggle {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 6px;
+  background: rgb(255 255 255 / 0.07);
+  padding: 8px 6px;
+  color: rgb(255 255 255 / 0.78);
+}
+
 @keyframes relievo-load {
   0% {
     transform: translateX(-120%);

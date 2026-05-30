@@ -16,7 +16,7 @@
 3. Interaction
    - Upload image or video.
    - Start webcam.
-   - Tune depth scale, point size, opacity, temporal smoothing, scan reveal, and presets.
+   - Tune depth scale, point size, opacity, temporal smoothing, scan reveal, and quality mode.
    - Hide the control surface with performance mode for projection, recording, and installation tests.
    - Share repeatable blank/demo states through URL hashes.
    - Test symbolic micro-texture with emoji mosaic mode while keeping the relief plane as the primary spatial object.
@@ -49,20 +49,16 @@ Outline:
 1. Why depth relief instead of reconstruction
 2. The core loop: sample frame, estimate depth, smooth, displace points
 3. Keeping render and inference loops separate
-4. Presets as visual language, not just settings
+4. A focused LiDAR visual language, not a pile of broken looks
 5. Exporting screenshots and short recordings
 6. Depth backend tradeoffs and future visual directions
 
 ## Demo Capture Checklist
 
-- [x] Capture at least one still image using Ghost Relief: `docs/assets/relievo-ghost-relief.jpg`.
 - [x] Capture one LiDAR Scan scene with scan reveal enabled: `docs/assets/relievo-lidar-scan.jpg`.
-- [x] Capture one Topographic close-up candidate: `docs/assets/relievo-topographic.jpg`.
 
 ## Current Representative Assets
 
 | Asset | Use |
 | --- | --- |
-| `docs/assets/relievo-ghost-relief.jpg` | Soft introductory portfolio image |
 | `docs/assets/relievo-lidar-scan.jpg` | Default interactive demo state |
-| `docs/assets/relievo-topographic.jpg` | Depth-band / technical article visual |

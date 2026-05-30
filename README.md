@@ -20,7 +20,7 @@ It runs media sampling, Depth Anything V2 inference, WebGL point rendering, live
 - Saves shareable URL hashes for repeatable artwork states when the source is blank or demo media.
 - Provides a performance mode that hides controls for projection, recording, and installation tests.
 - Includes an experimental emoji mosaic mode that places small symbolic glyphs on the same 3D relief plane as the point field.
-- Provides presets such as Ghost Relief, LiDAR Scan, Topographic, Soft Hologram, Depth Sculpture, and Glitch Field.
+- Keeps one focused LiDAR Scan visual language so the source image remains legible across stills, video, and webcam input.
 - Captures PNG screenshots and short canvas recordings with Web and Archive quality modes, preferring MP4 when the browser supports it and falling back to WebM.
 
 ## Local Development
@@ -50,7 +50,7 @@ Core modules:
 
 - `src/depth`: worker-backed heuristic depth estimation and temporal smoothing.
 - `src/renderer`: Three.js point relief renderer and animation loop.
-- `src/presets`: visual preset definitions and defaults.
+- `src/presets`: focused LiDAR Scan visual defaults.
 - `src/media`: image, video, webcam, and demo sources.
 - `src/export`: screenshot and MediaRecorder helpers.
 - `src/ui`: Tailwind-backed controls and lil-gui bridge.
@@ -68,6 +68,4 @@ The output is designed to feel like a relief surface in navigable 3D space while
 
 ## Representative Captures
 
-- [Ghost Relief](docs/assets/relievo-ghost-relief.jpg)
 - [LiDAR Scan](docs/assets/relievo-lidar-scan.jpg)
-- [Topographic](docs/assets/relievo-topographic.jpg)
