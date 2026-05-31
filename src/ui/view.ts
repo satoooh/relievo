@@ -33,9 +33,13 @@ export interface ViewElements {
   inputPreviewCanvas: HTMLCanvasElement;
   chrome: HTMLElement;
   controlsPanel: HTMLElement;
+  stageHud: HTMLElement;
+  inspectorStatus: HTMLElement;
   loadingOverlay: HTMLElement;
   blankButton: HTMLButtonElement;
+  imageButton: HTMLElement;
   imageInput: HTMLInputElement;
+  videoButton: HTMLElement;
   videoInput: HTMLInputElement;
   webcamButton: HTMLButtonElement;
   demoButton: HTMLButtonElement;
@@ -192,6 +196,7 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
           <p class="mt-1 text-[11px] leading-5 text-[#b8b6ae]">
             Real-time depth relief in a browser-based 3D space.
           </p>
+          <div id="stage-hud" class="ui-stage-hud mt-2" aria-label="Live render state"></div>
         </div>
         <div class="pointer-events-auto flex w-full flex-col items-end gap-2 md:w-auto">
           <div class="ui-top-actions">
@@ -223,6 +228,11 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
       </div>
 
       <aside id="controls-panel" class="ui-inspector absolute bottom-0 left-0 top-auto z-20 max-h-[52vh] w-full overflow-y-auto border-t border-white/12 bg-[#111214]/78 p-2 text-[#f1efe7] backdrop-blur-xl md:bottom-auto md:left-auto md:right-5 md:top-[92px] md:max-h-[calc(100vh-116px)] md:w-[340px] md:border md:p-3" data-active-control-tab="source">
+        <div class="ui-sheet-handle" aria-hidden="true"></div>
+        <div class="ui-inspector-header">
+          <span>Controls</span>
+          <span id="inspector-status">initializing</span>
+        </div>
         <div class="ui-control-tabs" role="tablist" aria-label="Relievo controls"></div>
 
         <section id="control-source" class="ui-control-section" data-control-section="source" aria-label="Source controls">
@@ -234,11 +244,11 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
             <button id="blank-button" class="ui-icon-button" type="button" title="Blank field" aria-label="Blank field" data-tooltip="Show blank point field">
               <i data-lucide="circle" aria-hidden="true"></i>
             </button>
-            <label class="ui-icon-button cursor-pointer" title="Load image" aria-label="Load image" data-tooltip="Load image">
+            <label id="image-button" class="ui-icon-button cursor-pointer" title="Load image" aria-label="Load image" data-tooltip="Load image">
               <i data-lucide="image" aria-hidden="true"></i>
               <input id="image-input" type="file" accept="image/*" class="sr-only" />
             </label>
-            <label class="ui-icon-button cursor-pointer" title="Load video" aria-label="Load video" data-tooltip="Load video">
+            <label id="video-button" class="ui-icon-button cursor-pointer" title="Load video" aria-label="Load video" data-tooltip="Load video">
               <i data-lucide="video" aria-hidden="true"></i>
               <input id="video-input" type="file" accept="video/*" class="sr-only" />
             </label>
@@ -356,6 +366,7 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
       </label>`,
     );
     controls[slider.key] = mustGet<HTMLInputElement>(id);
+    updateRangeProgress(controls[slider.key]);
   }
 
   const presetSelect = mustGet<HTMLSelectElement>("preset-select");
@@ -415,9 +426,13 @@ export function createView(root: HTMLElement, params: ReliefParams): ViewElement
     inputPreviewCanvas: mustGet<HTMLCanvasElement>("input-preview-canvas"),
     chrome: mustGet<HTMLElement>("chrome"),
     controlsPanel: mustGet<HTMLElement>("controls-panel"),
+    stageHud: mustGet<HTMLElement>("stage-hud"),
+    inspectorStatus: mustGet<HTMLElement>("inspector-status"),
     loadingOverlay: mustGet<HTMLElement>("loading-overlay"),
     blankButton: mustGet<HTMLButtonElement>("blank-button"),
+    imageButton: mustGet<HTMLElement>("image-button"),
     imageInput: mustGet<HTMLInputElement>("image-input"),
+    videoButton: mustGet<HTMLElement>("video-button"),
     videoInput: mustGet<HTMLInputElement>("video-input"),
     webcamButton: mustGet<HTMLButtonElement>("webcam-button"),
     demoButton: mustGet<HTMLButtonElement>("demo-button"),
@@ -449,6 +464,7 @@ export function syncView(
 ): void {
   for (const [key, control] of Object.entries(elements.controls) as Array<[SliderKey, HTMLInputElement]>) {
     control.value = String(params[key]);
+    updateRangeProgress(control);
     const output = document.getElementById(`control-${key}-value`);
     if (output) {
       output.textContent = formatNumber(params[key]);
@@ -471,6 +487,9 @@ export function syncView(
   elements.performanceButton.setAttribute("aria-label", options.performanceMode ? "Show controls" : "Performance mode");
   elements.performanceButton.dataset.tooltip = options.performanceMode ? "Show controls" : "Performance mode";
   elements.shell.classList.toggle("is-performance", options.performanceMode);
+  elements.stageHud.innerHTML = renderStageHud(params, stats, options);
+  elements.inspectorStatus.textContent = `${Math.round(stats.renderFPS)} fps / ${stats.quality}`;
+  syncSourceButtons(elements, stats.sourceKind);
   elements.loadingOverlay.classList.toggle("hidden", !stats.loading);
   elements.loadingOverlay.classList.toggle("flex", stats.loading);
   const loadingLabel = document.getElementById("loading-label");
@@ -483,7 +502,7 @@ export function syncView(
   elements.recordButton.dataset.tooltip = stats.recording ? "Stop recording" : "Start recording";
   elements.recordButton.disabled = !stats.recordingSupported;
   elements.recordButton.className = stats.recording
-    ? "ui-icon-button border-red-300/50 bg-red-400 text-xs font-medium text-black hover:bg-red-300"
+    ? "ui-icon-button is-recording border-red-300/50 bg-red-400 text-xs font-medium text-black hover:bg-red-300"
     : stats.recordingSupported
       ? "ui-icon-button"
       : "ui-icon-button cursor-not-allowed border-white/8 bg-white/4 text-white/42";
@@ -501,6 +520,7 @@ export function bindParamControls(
   for (const [key, input] of Object.entries(elements.controls) as Array<[SliderKey, HTMLInputElement]>) {
     input.addEventListener("input", () => {
       params[key] = Number(input.value);
+      updateRangeProgress(input);
       onChange();
     });
   }
@@ -537,6 +557,91 @@ export function readDemoScene(elements: ViewElements): DemoSceneId {
 
 function formatNumber(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(2);
+}
+
+function renderStageHud(
+  params: ReliefParams,
+  stats: RuntimeStats,
+  options: { emojiMode: boolean; exportQuality: ExportQuality; performanceMode: boolean },
+): string {
+  const chips = [
+    ["Source", sourceLabel(stats.sourceKind)],
+    ["Backend", compactBackendLabel(stats.backend)],
+    ["Render", `${Math.round(stats.renderFPS)} fps`],
+    ["Infer", `${Math.round(stats.inferenceFPS)} fps`],
+    ["Quality", stats.quality],
+    ["Mode", options.performanceMode ? "Performance" : params.artMode === "memory" ? "Memory" : "Relief"],
+  ];
+
+  if (stats.recording) {
+    chips.splice(2, 0, ["Capture", options.exportQuality === "archive" ? "Archive REC" : "Web REC"]);
+  }
+
+  if (options.emojiMode) {
+    chips.push(["Layer", "Emoji"]);
+  }
+
+  return chips
+    .map(([label, value]) => `<span class="ui-state-chip"><span>${label}</span><strong>${value}</strong></span>`)
+    .join("");
+}
+
+function sourceLabel(kind: RuntimeStats["sourceKind"]): string {
+  switch (kind) {
+    case "blank":
+      return "Blank";
+    case "demo":
+      return "Demo";
+    case "image":
+      return "Image";
+    case "video":
+      return "Video";
+    case "webcam":
+      return "Webcam";
+    default:
+      return kind;
+  }
+}
+
+function compactBackendLabel(backend: RuntimeStats["backend"]): string {
+  switch (backend) {
+    case "depth-anything-v2-base":
+      return "DA V2 Base";
+    case "depth-anything-v2-small":
+      return "DA V2 Small";
+    case "worker-cpu-heuristic":
+    case "cpu-heuristic":
+      return "Heuristic";
+    default:
+      return backend;
+  }
+}
+
+function syncSourceButtons(elements: ViewElements, sourceKind: RuntimeStats["sourceKind"]): void {
+  const sourceControls: Array<[HTMLElement, boolean]> = [
+    [elements.blankButton, sourceKind === "blank"],
+    [elements.imageButton, sourceKind === "image"],
+    [elements.videoButton, sourceKind === "video"],
+    [elements.webcamButton, sourceKind === "webcam"],
+    [elements.demoButton, sourceKind === "demo"],
+  ];
+
+  for (const [control, active] of sourceControls) {
+    control.classList.toggle("is-active", active);
+    if (control instanceof HTMLButtonElement) {
+      control.setAttribute("aria-pressed", String(active));
+    } else {
+      control.toggleAttribute("data-active", active);
+    }
+  }
+}
+
+function updateRangeProgress(input: HTMLInputElement): void {
+  const min = Number(input.min || 0);
+  const max = Number(input.max || 100);
+  const value = Number(input.value);
+  const progress = max === min ? 0 : ((value - min) / (max - min)) * 100;
+  input.style.setProperty("--range-progress", `${clamp(progress, 0, 100)}%`);
 }
 
 function renderLucideIcons(root: Element): void {

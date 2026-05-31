@@ -68,6 +68,7 @@ The output is designed to feel like a relief surface in navigable 3D space while
 - [Relievo Manifesto](docs/vision.md)
 - [Study 001: Guitar Relief](docs/studies/001-guitar-relief.md)
 - [Study 002: Interactive Point-Field Directions](docs/studies/002-interactive-point-field-directions.md)
+- [Study 003: Mobbin Editor UI References](docs/studies/003-mobbin-editor-ui.md)
 
 ## Representative Captures
 
